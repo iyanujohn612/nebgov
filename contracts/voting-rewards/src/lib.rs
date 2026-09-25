@@ -55,6 +55,8 @@ pub enum DataKey {
     Epoch(u64),
     /// `(epoch_id, claimant) -> ()`; presence alone prevents double-claiming.
     Claimed(u64, Address),
+    /// `epoch_id -> ()`; presence indicates epoch has been swept.
+    Swept(u64),
 }
 
 /// Soroban's maximum persistent-entry TTL (~180 days at the network's ~5s
@@ -63,6 +65,10 @@ pub enum DataKey {
 /// governance proposal publishes the root, and only then do voters trickle
 /// in to claim — so every write here is bumped to the ceiling.
 const REWARDS_TTL_LEDGERS: u32 = 3_110_400;
+
+/// Grace period after an epoch ends before its unclaimed rewards can be swept.
+/// Set to 7 days (~120,960 ledgers at ~5s per ledger) to give voters time to claim.
+const SWEEP_GRACE_PERIOD_LEDGERS: u32 = 120_960;
 
 #[contract]
 pub struct VotingRewardsContract;
@@ -112,7 +118,9 @@ impl VotingRewardsContract {
             .get(&DataKey::EpochDurationLedgers)
             .unwrap_or_else(|| env.panic_with_error(VotingRewardsError::NotInitialized));
 
-        let next_id = current_id + 1;
+        let next_id = current_id.checked_add(1).unwrap_or_else(|| {
+            env.panic_with_error(VotingRewardsError::EpochOverflow)
+        });
         let epoch = Epoch {
             id: next_id,
             start_ledger: current.end_ledger,
@@ -197,6 +205,11 @@ impl VotingRewardsContract {
             env.panic_with_error(VotingRewardsError::InvalidAmount);
         }
 
+        let sweep_key = DataKey::Swept(epoch_id);
+        if env.storage().persistent().has(&sweep_key) {
+            env.panic_with_error(VotingRewardsError::EpochAlreadySwept);
+        }
+
         let mut epoch = Self::must_get_epoch(&env, epoch_id);
         let root = match epoch.merkle_root.clone() {
             Some(root) if epoch.finalized => root,
@@ -269,6 +282,60 @@ impl VotingRewardsContract {
         );
 
         events::emit_pool_funded(&env, &funder, amount);
+    }
+
+    /// Sweep unclaimed rewards from a finalized epoch back into the available pool.
+    ///
+    /// Admin-only. After a grace period past the epoch's `end_ledger`, returns
+    /// any unclaimed rewards to `available_pool()` so they can fund future epochs.
+    /// A swept epoch can never be swept twice. Claims after sweep fail with
+    /// `EpochAlreadySwept`.
+    pub fn sweep_epoch(env: Env, admin: Address, epoch_id: u64) {
+        admin.require_auth();
+
+        let stored_admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .unwrap_or_else(|| env.panic_with_error(VotingRewardsError::NotInitialized));
+        if admin != stored_admin {
+            env.panic_with_error(VotingRewardsError::NotAuthorized);
+        }
+
+        let mut epoch = Self::must_get_epoch(&env, epoch_id);
+
+        if !epoch.finalized {
+            env.panic_with_error(VotingRewardsError::EpochNotFinalized);
+        }
+
+        let sweep_key = DataKey::Swept(epoch_id);
+        if env.storage().persistent().has(&sweep_key) {
+            env.panic_with_error(VotingRewardsError::EpochAlreadySwept);
+        }
+
+        let current_ledger = env.ledger().sequence();
+        let sweep_time = epoch.end_ledger.saturating_add(SWEEP_GRACE_PERIOD_LEDGERS);
+        if current_ledger < sweep_time {
+            env.panic_with_error(VotingRewardsError::EpochNotEnded);
+        }
+
+        let unclaimed = epoch.total_reward_amount - epoch.claimed_amount;
+        if unclaimed > 0 {
+            let allocated = Self::allocated(&env);
+            env.storage()
+                .instance()
+                .set(&DataKey::RewardsPool, &(allocated - unclaimed));
+        }
+
+        epoch.total_reward_amount = epoch.claimed_amount;
+        Self::store_epoch(&env, &epoch);
+
+        env.storage().persistent().set(&sweep_key, &());
+        env.storage()
+            .persistent()
+            .extend_ttl(&sweep_key, REWARDS_TTL_LEDGERS, REWARDS_TTL_LEDGERS);
+
+        events::emit_epoch_swept(&env, epoch_id, unclaimed);
     }
 
     pub fn get_epoch(env: Env, epoch_id: u64) -> Option<Epoch> {

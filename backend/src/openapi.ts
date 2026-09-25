@@ -65,6 +65,45 @@ const votesListResponseSchema = z.object({
   }),
 });
 
+// The route modules below use database-backed response objects whose exact
+// fields evolve independently of the transport contract. Keep the envelope
+// documented while preserving the concrete schemas above for signaling.
+const genericResponseSchema = z.record(z.string(), z.unknown());
+const genericListResponseSchema = z.array(genericResponseSchema);
+const authHeader = { security: [{ bearerAuth: [] }] };
+const publicRoute = (path: string, method: 'get' | 'post' | 'put' | 'delete', description: string, secured = true) =>
+  registry.registerPath({
+    method,
+    path,
+    description,
+    ...(secured ? authHeader : {}),
+    responses: {
+      200: { description: 'Successful response', content: { 'application/json': { schema: genericResponseSchema } } },
+      400: { description: 'Invalid request' },
+      401: { description: 'Authentication required' },
+      404: { description: 'Resource not found' },
+      500: { description: 'Internal server error' },
+    },
+  });
+
+// Keep this inventory alongside backend/src/index.ts. The route coverage test
+// makes omissions fail loudly when a router gains a new public endpoint.
+const documentedRoutes: Array<[string, 'get' | 'post' | 'put' | 'delete', boolean]> = [
+  ['/auth/login', 'post', false], ['/auth/refresh', 'post', false], ['/auth/logout', 'post', true],
+  ['/competitions', 'get', false], ['/competitions', 'post', true], ['/competitions/{id}', 'get', false],
+  ['/competitions/{id}', 'delete', true], ['/competitions/{id}/join', 'post', true], ['/competitions/{id}/leave', 'post', true],
+  ['/competitions/{id}/participants', 'get', false], ['/leaderboard/history', 'get', false], ['/leaderboard', 'get', false],
+  ['/notifications', 'get', true], ['/notifications', 'post', true], ['/notifications/preferences', 'get', true],
+  ['/notifications/preferences', 'put', true], ['/notifications/mark-read', 'post', true], ['/notifications/webhook', 'post', false],
+  ['/security/alerts', 'get', true], ['/security/alerts/{id}/resolve', 'post', true], ['/security/stats', 'get', true], ['/security/guardian-log', 'get', true],
+  ['/relayer/delegate', 'post', false], ['/relayer/submit', 'post', false],
+  ['/governance-tuning', 'get', false], ['/governance-tuning/config', 'get', false], ['/governance-tuning/config', 'put', true],
+  ['/proposal-simulation/simulate', 'post', false], ['/proposal-simulation/{id}', 'get', false], ['/proposal-simulation/{id}/status', 'get', false],
+  ['/voting-rewards/epochs', 'get', false], ['/voting-rewards/epochs/{epochId}', 'get', false], ['/voting-rewards/epochs/{epochId}/leaderboard', 'get', false], ['/voting-rewards/epochs/{epochId}/claims/{address}', 'get', false],
+  ['/proposals/{proposalId}/amendments', 'get', false], ['/proposals/{proposalId}/amendments/{version}', 'get', false], ['/proposals/{proposalId}/amend', 'post', true], ['/proposals/{proposalId}/publish-amendment/{version}', 'post', true], ['/proposals/{proposalId}/amendment-diff/{from}/{to}', 'get', false],
+];
+for (const [path, method, secured] of documentedRoutes) publicRoute(path, method, `${method.toUpperCase()} ${path}`, secured);
+
 // Register signaling endpoints
 registry.registerPath({
   method: 'post',

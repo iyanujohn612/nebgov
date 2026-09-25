@@ -167,6 +167,16 @@ info "SignalAnchor (${SIGNAL_ANCHOR_ADDRESS:-<not set>})"
 check_initialized "  signal_anchor.admin" \
   "$(query "${SIGNAL_ANCHOR_ADDRESS:-}" admin)"
 
+# ---- VoteEscrow ---------------------------------------------------------
+info "VoteEscrow (${VOTE_ESCROW_ADDRESS:-<not set>})"
+check_initialized "  vote_escrow.admin" \
+  "$(query "${VOTE_ESCROW_ADDRESS:-}" admin)"
+
+# ---- VotingRewards -------------------------------------------------------
+info "VotingRewards (${VOTING_REWARDS_ADDRESS:-<not set>})"
+check_initialized "  voting_rewards.total_pool" \
+  "$(query "${VOTING_REWARDS_ADDRESS:-}" total_pool)"
+
 # ---- ProposalBonds -------------------------------------------------------
 info "ProposalBonds (${PROPOSAL_BONDS_ADDRESS:-<not set>})"
 PROPOSAL_BONDS_SETTINGS="$(query "${PROPOSAL_BONDS_ADDRESS:-}" get_settings)"

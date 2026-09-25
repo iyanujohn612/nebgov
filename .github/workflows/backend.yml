@@ -49,6 +49,9 @@ jobs:
       - name: Build SDK
         run: pnpm --filter @nebgov/sdk run build
 
+      - name: Validate migration numbering
+        run: pnpm --filter nebgov-backend run check:migrations
+
       - name: Run backend database migrations
         run: pnpm --filter nebgov-backend run migrate
 

@@ -56,20 +56,26 @@ export function buildVotingRewardsClient(): VotingRewardsClient | null {
 }
 
 /** The epochs the backend has computed, newest first. */
-export function useRewardEpochs(limit = 20) {
+export function useRewardEpochs(limit = 20, offset = 0) {
   const [epochs, setEpochs] = useState<RewardEpochSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refetchToken, setRefetchToken] = useState(0);
+  const [total, setTotal] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
 
-    backendFetch<{ data: EpochResponseRow[] }>(`/voting-rewards/epochs?limit=${limit}`)
+    backendFetch<{ data: EpochResponseRow[]; total: number }>(
+      `/voting-rewards/epochs?limit=${limit}&offset=${offset}`,
+    )
       .then((res) => {
-        if (!cancelled) setEpochs(res.data.map(toEpochSummary));
+        if (!cancelled) {
+          setEpochs(res.data.map(toEpochSummary));
+          setTotal(res.total);
+        }
       })
       .catch((e: unknown) => {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
@@ -81,9 +87,9 @@ export function useRewardEpochs(limit = 20) {
     return () => {
       cancelled = true;
     };
-  }, [limit, refetchToken]);
+  }, [limit, offset, refetchToken]);
 
-  return { epochs, loading, error, refetch: useCallback(() => setRefetchToken((t) => t + 1), []) };
+  return { epochs, total, loading, error, refetch: useCallback(() => setRefetchToken((t) => t + 1), []) };
 }
 
 /**
@@ -193,11 +199,12 @@ export function useClaimableRewards(address: string | null) {
  * Returns `refetch` so callers can refresh the claimed/unclaimed flags
  * immediately after successful reward claims.
  */
-export function useEpochLeaderboard(epochId: bigint | null, limit = 10) {
+export function useEpochLeaderboard(epochId: bigint | null, limit = 10, offset = 0) {
   const [rows, setRows] = useState<LeaderboardRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refetchToken, setRefetchToken] = useState(0);
+  const [total, setTotal] = useState(0);
 
   useEffect(() => {
     if (epochId === null) {
@@ -210,8 +217,11 @@ export function useEpochLeaderboard(epochId: bigint | null, limit = 10) {
     setLoading(true);
     setError(null);
 
-    backendFetch<{ data: { claimant_address: string; amount: string; claimed: boolean }[] }>(
-      `/voting-rewards/epochs/${epochId}/leaderboard?limit=${limit}`,
+    backendFetch<{
+      data: { claimant_address: string; amount: string; claimed: boolean }[];
+      total: number;
+    }>(
+      `/voting-rewards/epochs/${epochId}/leaderboard?limit=${limit}&offset=${offset}`,
     )
       .then((res) => {
         if (cancelled) return;
@@ -222,6 +232,7 @@ export function useEpochLeaderboard(epochId: bigint | null, limit = 10) {
             claimed: row.claimed,
           })),
         );
+        setTotal(res.total);
       })
       .catch((e: unknown) => {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
@@ -233,10 +244,11 @@ export function useEpochLeaderboard(epochId: bigint | null, limit = 10) {
     return () => {
       cancelled = true;
     };
-  }, [epochId, limit, refetchToken]);
+  }, [epochId, limit, offset, refetchToken]);
 
   return {
     rows,
+    total,
     loading,
     error,
     refetch: useCallback(() => setRefetchToken((t) => t + 1), []),

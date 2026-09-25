@@ -17,4 +17,6 @@ pub enum VotingRewardsError {
     AlreadyClaimed = 11,
     InvalidProof = 12,
     EpochOverclaimed = 13,
+    EpochOverflow = 14,
+    EpochAlreadySwept = 15,
 }

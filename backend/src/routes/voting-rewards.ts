@@ -2,6 +2,7 @@ import { Response, Router } from "express";
 import { z } from "zod";
 import { validate } from "../middleware/validate";
 import { logger } from "../logger";
+import { stellarAddressSchema } from "../validation/stellar";
 import { refreshClaimStatuses } from "../voting-rewards/claim-status";
 import {
   getClaimsForAddress,
@@ -39,30 +40,38 @@ function serializeClaim(claim: StoredClaim) {
 
 const listQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional().default(20),
+  offset: z.coerce.number().int().min(0).optional().default(0),
 });
 
 const epochParamSchema = z.object({
   epochId: z.coerce.bigint().nonnegative(),
 });
 
-// Stellar strkeys are 56 characters; anything else can't be a claimant and
-// shouldn't reach the database as a wildcard.
+// Validate the full StrKey checksum before querying with a claimant address.
 const addressParamSchema = z.object({
-  address: z.string().regex(/^[A-Z0-9]{56}$/, "must be a Stellar address"),
+  address: stellarAddressSchema,
 });
+
+function errorResponse(error: unknown): { error: string; code: string } {
+  const databaseError =
+    typeof error === "object" && error !== null && "code" in error && /^[0-9A-Z]{5}$/.test(String(error.code));
+  return databaseError
+    ? { error: "Unable to read voting rewards", code: "VOTING_REWARDS_DATABASE_ERROR" }
+    : { error: "Unable to process voting rewards", code: "VOTING_REWARDS_INTERNAL_ERROR" };
+}
 
 // GET /voting-rewards/epochs?limit=20
 router.get(
   "/epochs",
   validate({ query: listQuerySchema }),
   async (req, res: Response): Promise<void> => {
-    const { limit } = req.query as unknown as z.infer<typeof listQuerySchema>;
+    const { limit, offset } = req.query as unknown as z.infer<typeof listQuerySchema>;
     try {
-      const epochs = await listEpochs(limit);
-      res.json({ data: epochs.map(serializeEpoch) });
+      const result = await listEpochs(limit, offset);
+      res.json({ data: result.rows.map(serializeEpoch), total: result.total });
     } catch (error) {
       logger.error({ err: error }, "Error in GET /voting-rewards/epochs");
-      res.status(500).json({ error: "Internal server error" });
+      res.status(500).json(errorResponse(error));
     }
   },
 );
@@ -76,13 +85,13 @@ router.get(
     try {
       const epoch = await getEpoch(epochId);
       if (!epoch) {
-        res.status(404).json({ error: "Epoch not found" });
+        res.status(404).json({ error: "Epoch not found", code: "EPOCH_NOT_FOUND" });
         return;
       }
       res.json(serializeEpoch(epoch));
     } catch (error) {
       logger.error({ err: error }, "Error in GET /voting-rewards/epochs/:epochId");
-      res.status(500).json({ error: "Internal server error" });
+      res.status(500).json(errorResponse(error));
     }
   },
 );
@@ -93,21 +102,22 @@ router.get(
   validate({ params: epochParamSchema, query: listQuerySchema }),
   async (req, res: Response): Promise<void> => {
     const { epochId } = req.params as unknown as z.infer<typeof epochParamSchema>;
-    const { limit } = req.query as unknown as z.infer<typeof listQuerySchema>;
+    const { limit, offset } = req.query as unknown as z.infer<typeof listQuerySchema>;
     try {
-      const rows = await getEpochLeaderboard(epochId, limit);
+      const result = await getEpochLeaderboard(epochId, limit, offset);
       // The leaderboard is public, so it deliberately omits `merkle_proof` —
       // a proof is only ever useful to its own claimant.
       res.json({
-        data: rows.map((row) => ({
+        data: result.rows.map((row) => ({
           claimant_address: row.claimantAddress,
           amount: row.amount.toString(),
           claimed: row.claimed,
         })),
+        total: result.total,
       });
     } catch (error) {
       logger.error({ err: error }, "Error in GET /voting-rewards/epochs/:epochId/leaderboard");
-      res.status(500).json({ error: "Internal server error" });
+      res.status(500).json(errorResponse(error));
     }
   },
 );
@@ -131,7 +141,7 @@ router.get(
       });
     } catch (error) {
       logger.error({ err: error }, "Error in GET /voting-rewards/claims/:address");
-      res.status(500).json({ error: "Internal server error" });
+      res.status(500).json(errorResponse(error));
     }
   },
 );

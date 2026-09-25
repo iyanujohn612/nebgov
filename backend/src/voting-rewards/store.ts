@@ -158,13 +158,19 @@ export async function getEpoch(epochId: bigint): Promise<StoredEpoch | null> {
   return result.rows[0] ? toEpoch(result.rows[0]) : null;
 }
 
-export async function listEpochs(limit: number): Promise<StoredEpoch[]> {
+export async function listEpochs(
+  limit: number,
+  offset: number,
+): Promise<{ rows: StoredEpoch[]; total: number }> {
   const result = await pool.query<EpochRow>(
     `SELECT epoch_id, start_ledger, end_ledger, merkle_root, total_reward_amount, published_at, publish_proposal_id
-       FROM voting_reward_epochs ORDER BY epoch_id DESC LIMIT $1`,
-    [limit],
+       FROM voting_reward_epochs ORDER BY epoch_id DESC LIMIT $1 OFFSET $2`,
+    [limit, offset],
   );
-  return result.rows.map(toEpoch);
+  const count = await pool.query<{ total: string }>(
+    `SELECT COUNT(*) AS total FROM voting_reward_epochs`,
+  );
+  return { rows: result.rows.map(toEpoch), total: Number(count.rows[0]?.total ?? 0) };
 }
 
 /** Every epoch `address` earned something in, newest first. */
@@ -180,14 +186,19 @@ export async function getClaimsForAddress(address: string): Promise<StoredClaim[
 export async function getEpochLeaderboard(
   epochId: bigint,
   limit: number,
-): Promise<StoredClaim[]> {
+  offset: number,
+): Promise<{ rows: StoredClaim[]; total: number }> {
   const result = await pool.query<ClaimRow>(
     `SELECT epoch_id, claimant_address, amount, merkle_proof, claimed
        FROM voting_reward_claims WHERE epoch_id = $1
-       ORDER BY amount DESC, claimant_address ASC LIMIT $2`,
-    [epochId.toString(), limit],
+       ORDER BY amount DESC, claimant_address ASC LIMIT $2 OFFSET $3`,
+    [epochId.toString(), limit, offset],
   );
-  return result.rows.map(toClaim);
+  const count = await pool.query<{ total: string }>(
+    `SELECT COUNT(*) AS total FROM voting_reward_claims WHERE epoch_id = $1`,
+    [epochId.toString()],
+  );
+  return { rows: result.rows.map(toClaim), total: Number(count.rows[0]?.total ?? 0) };
 }
 
 /** Epochs computed but not yet confirmed published on-chain, oldest first. */

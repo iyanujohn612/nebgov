@@ -11,1808 +11,2099 @@
     }
   ],
   "components": {
-    "securitySchemes": {
-      "bearerAuth": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT"
-      },
-      "adminSecret": {
-        "type": "apiKey",
-        "in": "header",
-        "name": "ADMIN_SECRET"
-      }
-    },
-    "schemas": {
-      "Error": {
-        "type": "object",
-        "properties": {
-          "error": {
-            "type": "string",
-            "example": "Something went wrong"
-          }
-        },
-        "required": [
-          "error"
-        ]
-      },
-      "ValidationError": {
-        "type": "object",
-        "properties": {
-          "errors": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "field": {
-                  "type": "string"
-                },
-                "message": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "field",
-                "message"
-              ]
-            }
-          }
-        },
-        "required": [
-          "errors"
-        ]
-      },
-      "LoginRequest": {
-        "type": "object",
-        "properties": {
-          "wallet_address": {
-            "type": "string",
-            "minLength": 10,
-            "maxLength": 56,
-            "example": "GABC123...XYZ"
-          }
-        },
-        "required": [
-          "wallet_address"
-        ]
-      },
-      "LoginResponse": {
-        "type": "object",
-        "properties": {
-          "accessToken": {
-            "type": "string"
-          },
-          "user_id": {
-            "type": "number"
-          },
-          "wallet_address": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "accessToken",
-          "user_id",
-          "wallet_address"
-        ]
-      },
-      "RefreshResponse": {
-        "type": "object",
-        "properties": {
-          "accessToken": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "accessToken"
-        ]
-      },
-      "MessageResponse": {
-        "type": "object",
-        "properties": {
-          "message": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "message"
-        ]
-      },
-      "LeaderboardEntry": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "number"
-          },
-          "user_id": {
-            "type": "number"
-          },
-          "score": {
-            "type": "number"
-          },
-          "rank": {
-            "type": "number"
-          },
-          "snapshot_date": {
-            "type": "string"
-          },
-          "created_at": {
-            "type": "string"
-          },
-          "wallet_address": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "user_id",
-          "score",
-          "rank",
-          "snapshot_date",
-          "created_at",
-          "wallet_address"
-        ]
-      },
-      "LeaderboardHistoryResponse": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/LeaderboardEntry"
-            }
-          },
-          "pagination": {
-            "type": "object",
-            "properties": {
-              "total": {
-                "type": "number"
-              },
-              "limit": {
-                "type": "number"
-              },
-              "offset": {
-                "type": "number"
-              },
-              "hasMore": {
-                "type": "boolean"
-              }
-            },
-            "required": [
-              "total",
-              "limit",
-              "offset",
-              "hasMore"
-            ]
-          }
-        },
-        "required": [
-          "data",
-          "pagination"
-        ]
-      },
-      "Competition": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "number"
-          },
-          "name": {
-            "type": "string"
-          },
-          "description": {
-            "type": "string",
-            "nullable": true
-          },
-          "entry_fee": {
-            "type": "number"
-          },
-          "start_date": {
-            "type": "string"
-          },
-          "end_date": {
-            "type": "string"
-          },
-          "is_active": {
-            "type": "boolean"
-          },
-          "created_by": {
-            "type": "number",
-            "nullable": true
-          },
-          "created_at": {
-            "type": "string"
-          },
-          "updated_at": {
-            "type": "string"
-          },
-          "participant_count": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "number"
-              }
-            ]
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "entry_fee",
-          "start_date",
-          "end_date",
-          "is_active",
-          "created_at",
-          "updated_at"
-        ]
-      },
-      "CompetitionParticipant": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "number"
-          },
-          "competition_id": {
-            "type": "number"
-          },
-          "user_id": {
-            "type": "number"
-          },
-          "entry_fee_paid": {
-            "type": "number"
-          },
-          "joined_at": {
-            "type": "string"
-          },
-          "wallet_address": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "competition_id",
-          "user_id",
-          "entry_fee_paid",
-          "joined_at"
-        ]
-      },
-      "CreateCompetitionRequest": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 100
-          },
-          "description": {
-            "type": "string",
-            "maxLength": 5000
-          },
-          "entry_fee": {
-            "type": "integer",
-            "nullable": true,
-            "minimum": 0
-          },
-          "start_date": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "end_date": {
-            "type": "string",
-            "format": "date-time"
-          }
-        },
-        "required": [
-          "name",
-          "entry_fee",
-          "start_date",
-          "end_date"
-        ]
-      },
-      "UpdateCompetitionRequest": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 100
-          },
-          "description": {
-            "type": "string",
-            "maxLength": 5000
-          },
-          "entry_fee": {
-            "type": "integer",
-            "nullable": true,
-            "minimum": 0
-          },
-          "start_date": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "end_date": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "is_active": {
-            "type": "boolean"
-          }
-        }
-      },
-      "NotificationPreferences": {
-        "type": "object",
-        "properties": {
-          "created_self": {
-            "type": "boolean"
-          },
-          "active": {
-            "type": "boolean"
-          },
-          "voting_ends_soon": {
-            "type": "boolean"
-          },
-          "outcome": {
-            "type": "boolean"
-          },
-          "queued": {
-            "type": "boolean"
-          },
-          "executed": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "created_self",
-          "active",
-          "voting_ends_soon",
-          "outcome",
-          "queued",
-          "executed"
-        ]
-      },
-      "Notification": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "number"
-          },
-          "type": {
-            "type": "string"
-          },
-          "proposal_id": {
-            "type": "number",
-            "nullable": true
-          },
-          "message": {
-            "type": "string",
-            "nullable": true
-          },
-          "read": {
-            "type": "boolean"
-          },
-          "created_at": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "type",
-          "read",
-          "created_at"
-        ]
-      },
-      "CreateNotificationRequest": {
-        "type": "object",
-        "properties": {
-          "type": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 64
-          },
-          "proposal_id": {
-            "type": "integer",
-            "nullable": true,
-            "minimum": 0
-          },
-          "message": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "type"
-        ]
-      },
-      "MarkReadRequest": {
-        "type": "object",
-        "properties": {
-          "ids": {
-            "type": "array",
-            "items": {
-              "type": "integer",
-              "nullable": true
-            }
-          },
-          "all": {
-            "type": "boolean"
-          }
-        }
-      },
-      "WebhookSubscriptionRequest": {
-        "type": "object",
-        "properties": {
-          "callback_url": {
-            "type": "string",
-            "format": "uri"
-          },
-          "event_filter": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 64
-            },
-            "default": []
-          }
-        },
-        "required": [
-          "callback_url"
-        ]
-      },
-      "WebhookSubscriptionResponse": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "number"
-          },
-          "callback_url": {
-            "type": "string"
-          },
-          "event_filter": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "active": {
-            "type": "boolean"
-          },
-          "created_at": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "callback_url",
-          "event_filter",
-          "active",
-          "created_at"
-        ]
-      },
-      "PartialNotificationPreferences": {
-        "type": "object",
-        "properties": {
-          "created_self": {
-            "type": "boolean"
-          },
-          "active": {
-            "type": "boolean"
-          },
-          "voting_ends_soon": {
-            "type": "boolean"
-          },
-          "outcome": {
-            "type": "boolean"
-          },
-          "queued": {
-            "type": "boolean"
-          },
-          "executed": {
-            "type": "boolean"
-          }
-        }
-      }
-    },
+    "schemas": {},
     "parameters": {}
   },
   "paths": {
     "/auth/login": {
       "post": {
-        "tags": [
-          "Auth"
-        ],
-        "summary": "Authenticate with wallet address (creates the user if new)",
-        "description": "Logs a wallet in. Returns a short-lived access token and sets a httpOnly refresh-token cookie.",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/LoginRequest"
-              }
-            }
-          }
-        },
+        "description": "POST /auth/login",
         "responses": {
           "200": {
-            "description": "Login successful",
+            "description": "Successful response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/LoginResponse"
+                  "type": "object",
+                  "additionalProperties": {
+                    "nullable": true
+                  }
                 }
               }
             }
           },
           "400": {
-            "description": "Invalid request body",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ValidationError"
-                }
-              }
-            }
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Resource not found"
           },
           "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
+            "description": "Internal server error"
           }
         }
       }
     },
     "/auth/refresh": {
       "post": {
-        "tags": [
-          "Auth"
-        ],
-        "summary": "Exchange a refresh-token cookie for a new access token",
-        "description": "Rotates the refresh token and issues a new short-lived access token.",
+        "description": "POST /auth/refresh",
         "responses": {
           "200": {
-            "description": "Token refreshed",
+            "description": "Successful response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/RefreshResponse"
+                  "type": "object",
+                  "additionalProperties": {
+                    "nullable": true
+                  }
                 }
               }
             }
+          },
+          "400": {
+            "description": "Invalid request"
           },
           "401": {
-            "description": "Missing, invalid, or expired refresh token",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Resource not found"
           },
           "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
+            "description": "Internal server error"
           }
         }
       }
     },
     "/auth/logout": {
       "post": {
-        "tags": [
-          "Auth"
-        ],
-        "summary": "Invalidate the current refresh token",
-        "responses": {
-          "200": {
-            "description": "Logged out",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MessageResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/leaderboard/history": {
-      "get": {
-        "tags": [
-          "Leaderboard"
-        ],
-        "summary": "Get historical leaderboard rankings",
-        "parameters": [
+        "description": "POST /auth/logout",
+        "security": [
           {
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "format": "date-time",
-              "description": "Filter by snapshot date"
-            },
-            "required": false,
-            "description": "Filter by snapshot date",
-            "name": "date",
-            "in": "query"
-          },
-          {
-            "schema": {
-              "type": "integer",
-              "nullable": true
-            },
-            "required": false,
-            "name": "user_id",
-            "in": "query"
-          },
-          {
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 100,
-              "default": 50
-            },
-            "required": false,
-            "name": "limit",
-            "in": "query"
-          },
-          {
-            "schema": {
-              "type": "integer",
-              "nullable": true,
-              "minimum": 0,
-              "default": 0
-            },
-            "required": false,
-            "name": "offset",
-            "in": "query"
+            "bearerAuth": []
           }
         ],
         "responses": {
           "200": {
-            "description": "Paginated leaderboard history",
+            "description": "Successful response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/LeaderboardHistoryResponse"
+                  "type": "object",
+                  "additionalProperties": {
+                    "nullable": true
+                  }
                 }
               }
             }
           },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
           "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
+            "description": "Internal server error"
           }
         }
       }
     },
     "/competitions": {
       "get": {
-        "tags": [
-          "Competitions"
-        ],
-        "summary": "List competitions with pagination",
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "enum": [
-                "true",
-                "false"
-              ]
-            },
-            "required": false,
-            "name": "is_active",
-            "in": "query"
-          },
-          {
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 100,
-              "default": 20
-            },
-            "required": false,
-            "name": "limit",
-            "in": "query"
-          },
-          {
-            "schema": {
-              "type": "integer",
-              "nullable": true,
-              "minimum": 0,
-              "default": 0
-            },
-            "required": false,
-            "name": "offset",
-            "in": "query"
-          }
-        ],
+        "description": "GET /competitions",
         "responses": {
           "200": {
-            "description": "Paginated list of competitions",
+            "description": "Successful response",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": {
-                    "competitions": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Competition"
-                      }
-                    },
-                    "total": {
-                      "type": "number"
-                    },
-                    "limit": {
-                      "type": "number"
-                    },
-                    "offset": {
-                      "type": "number"
-                    }
-                  },
-                  "required": [
-                    "competitions",
-                    "total",
-                    "limit",
-                    "offset"
-                  ]
+                  "additionalProperties": {
+                    "nullable": true
+                  }
                 }
               }
             }
           },
           "400": {
-            "description": "Invalid query parameters",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ValidationError"
-                }
-              }
-            }
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Resource not found"
           },
           "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
+            "description": "Internal server error"
           }
         }
       },
       "post": {
-        "tags": [
-          "Competitions"
-        ],
-        "summary": "Create a competition (admin only)",
+        "description": "POST /competitions",
         "security": [
           {
-            "adminSecret": []
+            "bearerAuth": []
           }
         ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateCompetitionRequest"
-              }
-            }
-          }
-        },
         "responses": {
-          "201": {
-            "description": "Competition created",
+          "200": {
+            "description": "Successful response",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": {
-                    "competition": {
-                      "$ref": "#/components/schemas/Competition"
-                    }
-                  },
-                  "required": [
-                    "competition"
-                  ]
+                  "additionalProperties": {
+                    "nullable": true
+                  }
                 }
               }
             }
           },
           "400": {
-            "description": "Invalid request body",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ValidationError"
-                }
-              }
-            }
+            "description": "Invalid request"
           },
-          "403": {
-            "description": "Admin authorization required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Resource not found"
           },
           "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
+            "description": "Internal server error"
           }
         }
       }
     },
     "/competitions/{id}": {
       "get": {
-        "tags": [
-          "Competitions"
-        ],
-        "summary": "Get a single competition",
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {}
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "exclusiveMinimum": true
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
+        "description": "GET /competitions/{id}",
         "responses": {
           "200": {
-            "description": "Competition details",
+            "description": "Successful response",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": {
-                    "competition": {
-                      "$ref": "#/components/schemas/Competition"
-                    },
-                    "is_joined": {
-                      "type": "boolean"
-                    }
-                  },
-                  "required": [
-                    "competition"
-                  ]
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Competition not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "tags": [
-          "Competitions"
-        ],
-        "summary": "Update a competition (admin only, before start_date)",
-        "security": [
-          {
-            "adminSecret": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "exclusiveMinimum": true
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateCompetitionRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Competition updated",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "competition": {
-                      "$ref": "#/components/schemas/Competition"
-                    }
-                  },
-                  "required": [
-                    "competition"
-                  ]
+                  "additionalProperties": {
+                    "nullable": true
+                  }
                 }
               }
             }
           },
           "400": {
-            "description": "Invalid request, or competition already started",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ValidationError"
-                }
-              }
-            }
+            "description": "Invalid request"
           },
-          "403": {
-            "description": "Admin authorization required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
+          "401": {
+            "description": "Authentication required"
           },
           "404": {
-            "description": "Competition not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
+            "description": "Resource not found"
           },
           "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
+            "description": "Internal server error"
           }
         }
       },
       "delete": {
-        "tags": [
-          "Competitions"
-        ],
-        "summary": "Soft-delete a competition (admin only, no participants)",
+        "description": "DELETE /competitions/{id}",
         "security": [
           {
-            "adminSecret": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "exclusiveMinimum": true
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Competition deactivated"
-          },
-          "400": {
-            "description": "Competition has existing participants",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Admin authorization required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Competition not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/competitions/{id}/participants": {
-      "get": {
-        "tags": [
-          "Competitions"
-        ],
-        "summary": "List participants in a competition",
-        "parameters": [
-          {
-            "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "exclusiveMinimum": true
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          },
-          {
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 100,
-              "default": 20
-            },
-            "required": false,
-            "name": "limit",
-            "in": "query"
-          },
-          {
-            "schema": {
-              "type": "integer",
-              "nullable": true,
-              "minimum": 0,
-              "default": 0
-            },
-            "required": false,
-            "name": "offset",
-            "in": "query"
+            "bearerAuth": []
           }
         ],
         "responses": {
           "200": {
-            "description": "Paginated list of participants",
+            "description": "Successful response",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": {
-                    "participants": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/CompetitionParticipant"
-                      }
-                    },
-                    "total": {
-                      "type": "number"
-                    },
-                    "limit": {
-                      "type": "number"
-                    },
-                    "offset": {
-                      "type": "number"
-                    }
-                  },
-                  "required": [
-                    "participants",
-                    "total",
-                    "limit",
-                    "offset"
-                  ]
+                  "additionalProperties": {
+                    "nullable": true
+                  }
                 }
               }
             }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
           },
           "404": {
-            "description": "Competition not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
+            "description": "Resource not found"
           },
           "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
+            "description": "Internal server error"
           }
         }
       }
     },
     "/competitions/{id}/join": {
       "post": {
-        "tags": [
-          "Competitions"
-        ],
-        "summary": "Join a competition",
+        "description": "POST /competitions/{id}/join",
         "security": [
           {
             "bearerAuth": []
           }
         ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "exclusiveMinimum": true
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
         "responses": {
-          "201": {
-            "description": "Joined competition",
+          "200": {
+            "description": "Successful response",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    },
-                    "participant": {
-                      "$ref": "#/components/schemas/CompetitionParticipant"
-                    }
-                  },
-                  "required": [
-                    "message",
-                    "participant"
-                  ]
+                  "additionalProperties": {
+                    "nullable": true
+                  }
                 }
               }
             }
           },
           "400": {
-            "description": "Competition inactive, already started, ended, or already joined",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
+            "description": "Invalid request"
           },
           "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
+            "description": "Authentication required"
           },
           "404": {
-            "description": "Competition not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
+            "description": "Resource not found"
           },
           "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
+            "description": "Internal server error"
           }
         }
       }
     },
     "/competitions/{id}/leave": {
-      "delete": {
-        "tags": [
-          "Competitions"
-        ],
-        "summary": "Leave a competition before it starts",
+      "post": {
+        "description": "POST /competitions/{id}/leave",
         "security": [
           {
             "bearerAuth": []
           }
         ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "exclusiveMinimum": true
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
         "responses": {
           "200": {
-            "description": "Left competition",
+            "description": "Successful response",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    },
-                    "refund": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "message",
-                    "refund"
-                  ]
+                  "additionalProperties": {
+                    "nullable": true
+                  }
                 }
               }
             }
           },
           "400": {
-            "description": "Competition has already started",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
+            "description": "Invalid request"
           },
           "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
+            "description": "Authentication required"
           },
           "404": {
-            "description": "Competition or participant entry not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
+            "description": "Resource not found"
           },
           "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
+            "description": "Internal server error"
           }
         }
       }
     },
-    "/notifications/preferences": {
+    "/competitions/{id}/participants": {
       "get": {
-        "tags": [
-          "Notifications"
-        ],
-        "summary": "Get the current user's notification preferences",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+        "description": "GET /competitions/{id}/participants",
         "responses": {
           "200": {
-            "description": "Notification preferences",
+            "description": "Successful response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/NotificationPreferences"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "Notifications"
-        ],
-        "summary": "Save the current user's notification preferences",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PartialNotificationPreferences"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Updated preferences",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NotificationPreferences"
+                  "type": "object",
+                  "additionalProperties": {
+                    "nullable": true
+                  }
                 }
               }
             }
           },
           "400": {
-            "description": "Invalid request body",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ValidationError"
-                }
-              }
-            }
+            "description": "Invalid request"
           },
           "401": {
-            "description": "Authentication required",
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/leaderboard/history": {
+      "get": {
+        "description": "GET /leaderboard/history",
+        "responses": {
+          "200": {
+            "description": "Successful response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "type": "object",
+                  "additionalProperties": {
+                    "nullable": true
+                  }
                 }
               }
             }
           },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
           "500": {
-            "description": "Server error",
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/leaderboard": {
+      "get": {
+        "description": "GET /leaderboard",
+        "responses": {
+          "200": {
+            "description": "Successful response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "type": "object",
+                  "additionalProperties": {
+                    "nullable": true
+                  }
                 }
               }
             }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
           }
         }
       }
     },
     "/notifications": {
       "get": {
-        "tags": [
-          "Notifications"
-        ],
-        "summary": "List the current user's notification history",
+        "description": "GET /notifications",
         "security": [
           {
             "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 200,
-              "default": 100
-            },
-            "required": false,
-            "name": "limit",
-            "in": "query"
-          },
-          {
-            "schema": {
-              "type": "integer",
-              "nullable": true,
-              "minimum": 0,
-              "default": 0
-            },
-            "required": false,
-            "name": "offset",
-            "in": "query"
-          },
-          {
-            "schema": {
-              "type": "string",
-              "enum": [
-                "true",
-                "false"
-              ],
-              "default": "false"
-            },
-            "required": false,
-            "name": "unread_only",
-            "in": "query"
           }
         ],
         "responses": {
           "200": {
-            "description": "Paginated notification history",
+            "description": "Successful response",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Notification"
-                      }
-                    },
-                    "meta": {
-                      "type": "object",
-                      "properties": {
-                        "total": {
-                          "type": "number"
-                        },
-                        "unread": {
-                          "type": "number"
-                        },
-                        "limit": {
-                          "type": "number"
-                        },
-                        "offset": {
-                          "type": "number"
-                        }
-                      },
-                      "required": [
-                        "total",
-                        "unread",
-                        "limit",
-                        "offset"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "data",
-                    "meta"
-                  ]
+                  "additionalProperties": {
+                    "nullable": true
+                  }
                 }
               }
             }
           },
           "400": {
-            "description": "Invalid query parameters",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ValidationError"
-                }
-              }
-            }
+            "description": "Invalid request"
           },
           "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Resource not found"
           },
           "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
+            "description": "Internal server error"
           }
         }
       },
       "post": {
-        "tags": [
-          "Notifications"
-        ],
-        "summary": "Create a notification history entry for the current user",
+        "description": "POST /notifications",
         "security": [
           {
             "bearerAuth": []
           }
         ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateNotificationRequest"
-              }
-            }
-          }
-        },
         "responses": {
-          "201": {
-            "description": "Notification created",
+          "200": {
+            "description": "Successful response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Notification"
+                  "type": "object",
+                  "additionalProperties": {
+                    "nullable": true
+                  }
                 }
               }
             }
           },
           "400": {
-            "description": "Invalid request body",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ValidationError"
-                }
-              }
-            }
+            "description": "Invalid request"
           },
           "401": {
-            "description": "Authentication required",
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/notifications/preferences": {
+      "get": {
+        "description": "GET /notifications/preferences",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "type": "object",
+                  "additionalProperties": {
+                    "nullable": true
+                  }
                 }
               }
             }
           },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
           "500": {
-            "description": "Server error",
+            "description": "Internal server error"
+          }
+        }
+      },
+      "put": {
+        "description": "PUT /notifications/preferences",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "type": "object",
+                  "additionalProperties": {
+                    "nullable": true
+                  }
                 }
               }
             }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
           }
         }
       }
     },
     "/notifications/mark-read": {
       "post": {
-        "tags": [
-          "Notifications"
-        ],
-        "summary": "Mark notifications as read",
+        "description": "POST /notifications/mark-read",
         "security": [
           {
             "bearerAuth": []
           }
         ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/MarkReadRequest"
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
-            "description": "Updated unread count",
+            "description": "Successful response",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": {
-                    "unread": {
-                      "type": "number"
-                    }
-                  },
-                  "required": [
-                    "unread"
-                  ]
+                  "additionalProperties": {
+                    "nullable": true
+                  }
                 }
               }
             }
           },
           "400": {
-            "description": "Invalid request body",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ValidationError"
-                }
-              }
-            }
+            "description": "Invalid request"
           },
           "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Resource not found"
           },
           "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
+            "description": "Internal server error"
           }
         }
       }
     },
     "/notifications/webhook": {
       "post": {
-        "tags": [
-          "Notifications"
-        ],
-        "summary": "Register a webhook subscription for notification events",
+        "description": "POST /notifications/webhook",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/security/alerts": {
+      "get": {
+        "description": "GET /security/alerts",
         "security": [
           {
             "bearerAuth": []
           }
         ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/security/alerts/{id}/resolve": {
+      "post": {
+        "description": "POST /security/alerts/{id}/resolve",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/security/stats": {
+      "get": {
+        "description": "GET /security/stats",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/security/guardian-log": {
+      "get": {
+        "description": "GET /security/guardian-log",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/relayer/delegate": {
+      "post": {
+        "description": "POST /relayer/delegate",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/relayer/submit": {
+      "post": {
+        "description": "POST /relayer/submit",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/governance-tuning": {
+      "get": {
+        "description": "GET /governance-tuning",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/governance-tuning/config": {
+      "get": {
+        "description": "GET /governance-tuning/config",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      },
+      "put": {
+        "description": "PUT /governance-tuning/config",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/proposal-simulation/simulate": {
+      "post": {
+        "description": "POST /proposal-simulation/simulate",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/proposal-simulation/{id}": {
+      "get": {
+        "description": "GET /proposal-simulation/{id}",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/proposal-simulation/{id}/status": {
+      "get": {
+        "description": "GET /proposal-simulation/{id}/status",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/voting-rewards/epochs": {
+      "get": {
+        "description": "GET /voting-rewards/epochs",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/voting-rewards/epochs/{epochId}": {
+      "get": {
+        "description": "GET /voting-rewards/epochs/{epochId}",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/voting-rewards/epochs/{epochId}/leaderboard": {
+      "get": {
+        "description": "GET /voting-rewards/epochs/{epochId}/leaderboard",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/voting-rewards/epochs/{epochId}/claims/{address}": {
+      "get": {
+        "description": "GET /voting-rewards/epochs/{epochId}/claims/{address}",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/proposals/{proposalId}/amendments": {
+      "get": {
+        "description": "GET /proposals/{proposalId}/amendments",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/proposals/{proposalId}/amendments/{version}": {
+      "get": {
+        "description": "GET /proposals/{proposalId}/amendments/{version}",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/proposals/{proposalId}/amend": {
+      "post": {
+        "description": "POST /proposals/{proposalId}/amend",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/proposals/{proposalId}/publish-amendment/{version}": {
+      "post": {
+        "description": "POST /proposals/{proposalId}/publish-amendment/{version}",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/proposals/{proposalId}/amendment-diff/{from}/{to}": {
+      "get": {
+        "description": "GET /proposals/{proposalId}/amendment-diff/{from}/{to}",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/signaling/polls": {
+      "post": {
+        "description": "Create a temperature-check poll",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/WebhookSubscriptionRequest"
+                "type": "object",
+                "properties": {
+                  "creatorAddress": {
+                    "type": "string",
+                    "pattern": "^G[A-Z2-7]{55}$"
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "description": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "choices": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 100
+                    },
+                    "minItems": 2,
+                    "maxItems": 10
+                  },
+                  "snapshotLedger": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true
+                  },
+                  "startTime": {
+                    "type": "string",
+                    "nullable": true,
+                    "format": "date-time"
+                  },
+                  "endTime": {
+                    "type": "string",
+                    "nullable": true,
+                    "format": "date-time"
+                  }
+                },
+                "required": [
+                  "creatorAddress",
+                  "title",
+                  "description",
+                  "choices",
+                  "snapshotLedger",
+                  "startTime",
+                  "endTime"
+                ]
               }
             }
           }
         },
         "responses": {
           "201": {
-            "description": "Webhook subscription created",
+            "description": "Poll created",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/WebhookSubscriptionResponse"
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "creatorAddress": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "choices": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "snapshotLedger": {
+                      "type": "integer"
+                    },
+                    "startTime": {
+                      "type": "string"
+                    },
+                    "endTime": {
+                      "type": "string"
+                    },
+                    "finalized": {
+                      "type": "boolean"
+                    },
+                    "resultHash": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "anchoredTxHash": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "creatorAddress",
+                    "title",
+                    "description",
+                    "choices",
+                    "snapshotLedger",
+                    "startTime",
+                    "endTime",
+                    "finalized",
+                    "resultHash",
+                    "anchoredTxHash",
+                    "createdAt"
+                  ]
                 }
               }
             }
           },
           "400": {
-            "description": "Invalid request body or event name",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
+            "description": "Invalid input"
           },
-          "401": {
-            "description": "Authentication required",
+          "403": {
+            "description": "Creator voting power below threshold"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      },
+      "get": {
+        "description": "List all signaling polls",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "def": {
+                "type": "optional",
+                "innerType": {
+                  "def": {
+                    "type": "enum",
+                    "entries": {
+                      "active": "active",
+                      "closed": "closed"
+                    }
+                  },
+                  "type": "enum",
+                  "enum": {
+                    "active": "active",
+                    "closed": "closed"
+                  },
+                  "options": [
+                    "active",
+                    "closed"
+                  ]
+                }
+              },
+              "type": "optional"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of polls",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "creatorAddress": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "type": "string"
+                      },
+                      "choices": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "snapshotLedger": {
+                        "type": "integer"
+                      },
+                      "startTime": {
+                        "type": "string"
+                      },
+                      "endTime": {
+                        "type": "string"
+                      },
+                      "finalized": {
+                        "type": "boolean"
+                      },
+                      "resultHash": {
+                        "type": "string",
+                        "nullable": true
+                      },
+                      "anchoredTxHash": {
+                        "type": "string",
+                        "nullable": true
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "creatorAddress",
+                      "title",
+                      "description",
+                      "choices",
+                      "snapshotLedger",
+                      "startTime",
+                      "endTime",
+                      "finalized",
+                      "resultHash",
+                      "anchoredTxHash",
+                      "createdAt"
+                    ]
+                  }
                 }
               }
             }
           },
           "500": {
-            "description": "Server error",
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/signaling/polls/{id}": {
+      "get": {
+        "description": "Get a specific signaling poll",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "def": {
+                "type": "number",
+                "checks": [
+                  {
+                    "def": {
+                      "type": "number",
+                      "check": "number_format",
+                      "abort": false,
+                      "format": "safeint"
+                    },
+                    "type": "number",
+                    "minValue": -9007199254740991,
+                    "maxValue": 9007199254740991,
+                    "isInt": true,
+                    "isFinite": true,
+                    "format": "safeint"
+                  }
+                ]
+              },
+              "type": "number",
+              "minValue": -9007199254740991,
+              "maxValue": 9007199254740991,
+              "isInt": true,
+              "isFinite": true,
+              "format": "safeint"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Poll details",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "creatorAddress": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "choices": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "snapshotLedger": {
+                      "type": "integer"
+                    },
+                    "startTime": {
+                      "type": "string"
+                    },
+                    "endTime": {
+                      "type": "string"
+                    },
+                    "finalized": {
+                      "type": "boolean"
+                    },
+                    "resultHash": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "anchoredTxHash": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "creatorAddress",
+                    "title",
+                    "description",
+                    "choices",
+                    "snapshotLedger",
+                    "startTime",
+                    "endTime",
+                    "finalized",
+                    "resultHash",
+                    "anchoredTxHash",
+                    "createdAt"
+                  ]
                 }
               }
             }
+          },
+          "404": {
+            "description": "Poll not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/signaling/polls/{id}/vote": {
+      "post": {
+        "description": "Cast a gasless vote on a signaling poll",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "def": {
+                "type": "number",
+                "checks": [
+                  {
+                    "def": {
+                      "type": "number",
+                      "check": "number_format",
+                      "abort": false,
+                      "format": "safeint"
+                    },
+                    "type": "number",
+                    "minValue": -9007199254740991,
+                    "maxValue": 9007199254740991,
+                    "isInt": true,
+                    "isFinite": true,
+                    "format": "safeint"
+                  }
+                ]
+              },
+              "type": "number",
+              "minValue": -9007199254740991,
+              "maxValue": 9007199254740991,
+              "isInt": true,
+              "isFinite": true,
+              "format": "safeint"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "choiceIndex": {
+                    "type": "integer",
+                    "nullable": true,
+                    "minimum": 0
+                  },
+                  "nonce": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "signature": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "choiceIndex",
+                  "nonce",
+                  "signature"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Vote recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or poll not open"
+          },
+          "404": {
+            "description": "Poll not found"
+          },
+          "409": {
+            "description": "Address has already voted"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/signaling/polls/{id}/results": {
+      "get": {
+        "description": "Get live or finalized poll results",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "def": {
+                "type": "number",
+                "checks": [
+                  {
+                    "def": {
+                      "type": "number",
+                      "check": "number_format",
+                      "abort": false,
+                      "format": "safeint"
+                    },
+                    "type": "number",
+                    "minValue": -9007199254740991,
+                    "maxValue": 9007199254740991,
+                    "isInt": true,
+                    "isFinite": true,
+                    "format": "safeint"
+                  }
+                ]
+              },
+              "type": "number",
+              "minValue": -9007199254740991,
+              "maxValue": 9007199254740991,
+              "isInt": true,
+              "isFinite": true,
+              "format": "safeint"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Poll results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "finalized": {
+                      "type": "boolean"
+                    },
+                    "resultHash": {
+                      "type": "string"
+                    },
+                    "anchoredTxHash": {
+                      "type": "string"
+                    },
+                    "choices": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "totals": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "totalVotes": {
+                      "type": "integer"
+                    },
+                    "totalWeight": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "finalized",
+                    "choices",
+                    "totals",
+                    "totalVotes",
+                    "totalWeight"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Poll not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/signaling/polls/{id}/votes": {
+      "get": {
+        "description": "Get paginated vote list for auditability",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "def": {
+                "type": "number",
+                "checks": [
+                  {
+                    "def": {
+                      "type": "number",
+                      "check": "number_format",
+                      "abort": false,
+                      "format": "safeint"
+                    },
+                    "type": "number",
+                    "minValue": -9007199254740991,
+                    "maxValue": 9007199254740991,
+                    "isInt": true,
+                    "isFinite": true,
+                    "format": "safeint"
+                  }
+                ]
+              },
+              "type": "number",
+              "minValue": -9007199254740991,
+              "maxValue": 9007199254740991,
+              "isInt": true,
+              "isFinite": true,
+              "format": "safeint"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "def": {
+                "type": "default",
+                "innerType": {
+                  "def": {
+                    "type": "optional",
+                    "innerType": {
+                      "def": {
+                        "type": "number",
+                        "coerce": true,
+                        "checks": [
+                          {
+                            "def": {
+                              "type": "number",
+                              "check": "number_format",
+                              "abort": false,
+                              "format": "safeint"
+                            },
+                            "type": "number",
+                            "minValue": -9007199254740991,
+                            "maxValue": 9007199254740991,
+                            "isInt": true,
+                            "isFinite": true,
+                            "format": "safeint"
+                          },
+                          {},
+                          {}
+                        ]
+                      },
+                      "type": "number",
+                      "minValue": 1,
+                      "maxValue": 200,
+                      "isInt": true,
+                      "isFinite": true,
+                      "format": "safeint"
+                    }
+                  },
+                  "type": "optional"
+                },
+                "defaultValue": 50
+              },
+              "type": "default"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "def": {
+                "type": "default",
+                "innerType": {
+                  "def": {
+                    "type": "optional",
+                    "innerType": {
+                      "def": {
+                        "type": "number",
+                        "coerce": true,
+                        "checks": [
+                          {
+                            "def": {
+                              "type": "number",
+                              "check": "number_format",
+                              "abort": false,
+                              "format": "safeint"
+                            },
+                            "type": "number",
+                            "minValue": -9007199254740991,
+                            "maxValue": 9007199254740991,
+                            "isInt": true,
+                            "isFinite": true,
+                            "format": "safeint"
+                          },
+                          {}
+                        ]
+                      },
+                      "type": "number",
+                      "minValue": 0,
+                      "maxValue": 9007199254740991,
+                      "isInt": true,
+                      "isFinite": true,
+                      "format": "safeint"
+                    }
+                  },
+                  "type": "optional"
+                },
+                "defaultValue": 0
+              },
+              "type": "default"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated vote list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "votes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "voter_address": {
+                            "type": "string"
+                          },
+                          "choice_index": {
+                            "type": "integer"
+                          },
+                          "nonce": {
+                            "type": "string"
+                          },
+                          "signature": {
+                            "type": "string"
+                          },
+                          "voting_power": {
+                            "type": "integer",
+                            "nullable": true
+                          },
+                          "created_at": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "voter_address",
+                          "choice_index",
+                          "nonce",
+                          "signature",
+                          "voting_power",
+                          "created_at"
+                        ]
+                      }
+                    },
+                    "pagination": {
+                      "type": "object",
+                      "properties": {
+                        "limit": {
+                          "type": "integer"
+                        },
+                        "offset": {
+                          "type": "integer"
+                        },
+                        "hasMore": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "limit",
+                        "offset",
+                        "hasMore"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "votes",
+                    "pagination"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Poll not found"
+          },
+          "500": {
+            "description": "Internal server error"
           }
         }
       }

@@ -58,12 +58,22 @@ describe("Voting Rewards Endpoints", () => {
       const response = await request(app).get("/voting-rewards/epochs?limit=2").expect(200);
 
       expect(response.body.data).toHaveLength(2);
+      expect(response.body.total).toBe(2);
       expect(response.body.data[0].epoch_id).toBe(EPOCH_B.toString());
       expect(response.body.data[1]).toMatchObject({
         epoch_id: EPOCH_A.toString(),
         merkle_root: "11".repeat(32),
         total_reward_amount: "3000",
       });
+    });
+
+    it("honours the offset", async () => {
+      const response = await request(app).get("/voting-rewards/epochs?limit=1&offset=1").expect(200);
+
+      expect(response.body.data.map((epoch: { epoch_id: string }) => epoch.epoch_id)).toEqual([
+        EPOCH_A.toString(),
+      ]);
+      expect(response.body.total).toBe(2);
     });
 
     it("rejects a limit outside the allowed range", async () => {
@@ -127,6 +137,7 @@ describe("Voting Rewards Endpoints", () => {
         .expect(200);
 
       expect(response.body.data).toHaveLength(1);
+      expect(response.body.total).toBe(3);
     });
 
     it("returns an empty list for an epoch with no claimants", async () => {
@@ -135,6 +146,7 @@ describe("Voting Rewards Endpoints", () => {
         .expect(200);
 
       expect(response.body.data).toEqual([]);
+      expect(response.body.total).toBe(0);
     });
   });
 
@@ -173,6 +185,20 @@ describe("Voting Rewards Endpoints", () => {
 
     it("rejects anything that is not a Stellar address, rather than querying with it", async () => {
       const response = await request(app).get("/voting-rewards/claims/nope").expect(400);
+      expect(response.body).toHaveProperty("errors");
+    });
+
+    it("rejects an invalid base32 character", async () => {
+      const response = await request(app)
+        .get("/voting-rewards/claims/GA3I6MVQC2EXERDKLVWNFGGYEHII5ZVWFS4ZUQGKAP3XRJWR7P5FUGQ0")
+        .expect(400);
+      expect(response.body).toHaveProperty("errors");
+    });
+
+    it("rejects a bad checksum even when the shape looks like a Stellar address", async () => {
+      const response = await request(app)
+        .get("/voting-rewards/claims/GA3I6MVQC2EXERDKLVWNFGGYEHII5ZVWFS4ZUQGKAP3XRJWR7P5FUGQA")
+        .expect(400);
       expect(response.body).toHaveProperty("errors");
     });
   });

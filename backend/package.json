@@ -8,6 +8,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "test": "jest --runInBand",
+    "check:migrations": "node scripts/check-migration-prefixes.mjs",
     "migrate": "tsx src/db/migrate.ts",
     "migrate:down": "tsx src/db/migrate.ts down"
   },

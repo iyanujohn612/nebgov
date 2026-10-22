@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Treasury Streams: `contracts/treasury-streams` for recurring treasury payments, created by the governor and paid out permissionlessly per whole interval, with pause, resume and cancel. Includes the SDK `TreasuryStreamsClient`, a backend executor job gated on `TREASURY_STREAMS_CONTRACT_ID`, and the `treasury_stream_failures` table (migration 014).
+- Simulation: `treasury_strategies` scenario covering deposit, withdrawal cooldown, early and double claims, and over-allocation (new `tools/sim` steps for treasury strategies).
+- Architecture docs: sections for the proposal-bonds, optimistic-governor, conviction-voting, treasury-strategies and signal-anchor contracts, and their events.
 - Liquidity contract docs page covering pools, liquidity provision, swaps, fees, views, events, errors, and deployment order (#1399).
 - Token votes wrapper docs page covering wrapping, voting power, withdrawal locks, entrypoints, events, errors, and deployment order (#1403).
 - Unit tests for the optimistic governor SDK client (#1404).
@@ -70,6 +73,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Frontend: LockCard component tests added, decay progress calculation fixed (#1346)
 
 ### Security
+
+- Vote Escrow: `update_escrow_config` now checks the caller against the stored admin and panics with the new `Unauthorized` error (#1190). The SDK's `VoteEscrowErrorCode` numbering is aligned with the contract: `ArithmeticOverflow = 8`, `Unauthorized = 9`.
 
 - XSS Protection: comprehensive input sanitization and output encoding implemented across frontend to prevent cross-site scripting attacks
 - Authorization Audit: verified all invoke_contract calls have proper require_auth() checks or documented exceptions (see rust.yml audit step)

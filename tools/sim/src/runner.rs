@@ -36,6 +36,8 @@ use sorogov_signal_anchor::{SignalAnchorContract, SignalAnchorContractClient};
 use sorogov_timelock::{TimelockContract, TimelockContractClient};
 use sorogov_token_votes::{TokenVotesContract, TokenVotesContractClient};
 use sorogov_treasury::{TreasuryContract, TreasuryContractClient};
+use sorogov_treasury_strategies::adapters::mock_adapter::MockAdapter;
+use sorogov_treasury_strategies::{TreasuryStrategiesContract, TreasuryStrategiesContractClient};
 use sorogov_vote_escrow::{VoteEscrowContract, VoteEscrowContractClient};
 use sorogov_voting_rewards::{merkle, VotingRewardsContract, VotingRewardsContractClient};
 
@@ -102,6 +104,9 @@ pub struct SimulationRunner {
     token: Address,
     target: Address,
     treasury_addr: Address,
+    treasury_strategies: TreasuryStrategiesContractClient<'static>,
+    treasury_strategies_admin: Address,
+    strategy_adapter: Address,
     proposal_bonds_addr: Address,
     actors: HashMap<String, Address>,
     report: SimulationReport,
@@ -180,6 +185,14 @@ impl SimulationRunner {
         let treasury_id = env.register(TreasuryContract, ());
         let treasury = TreasuryContractClient::new(&env, &treasury_id);
         treasury.initialize(&treasury_owners, &1u32, &governor_id);
+
+        // Strategies are admin-registered and treasury-funded, so the admin
+        // here is the harness admin and the treasury is the multisig above.
+        let treasury_strategies_id = env.register(TreasuryStrategiesContract, ());
+        let treasury_strategies =
+            TreasuryStrategiesContractClient::new(&env, &treasury_strategies_id);
+        treasury_strategies.initialize(&admin, &treasury_id);
+        let strategy_adapter = env.register(MockAdapter, ());
 
         let co_sponsorship_id = env.register(CoSponsorshipContract, ());
         let co_sponsorship = CoSponsorshipContractClient::new(&env, &co_sponsorship_id);
@@ -282,6 +295,9 @@ impl SimulationRunner {
             token,
             target,
             treasury_addr: treasury_id,
+            treasury_strategies,
+            treasury_strategies_admin: admin,
+            strategy_adapter,
             proposal_bonds_addr: proposal_bonds_id,
             actors,
             report,
@@ -1149,6 +1165,70 @@ impl SimulationRunner {
                     panic!(
                         "expected '{}' to hold {} of the reward asset, held {}",
                         actor, balance, actual
+                    );
+                }
+            }
+            SimStep::RegisterTreasuryStrategy {
+                max_allocation_bps,
+                withdrawal_cooldown_ledgers,
+            } => {
+                let admin = self.treasury_strategies_admin.clone();
+                self.treasury_strategies.register_strategy(
+                    &admin,
+                    &self.strategy_adapter,
+                    &self.token,
+                    max_allocation_bps,
+                    withdrawal_cooldown_ledgers,
+                );
+            }
+            SimStep::FundTreasury { amount } => {
+                token::StellarAssetClient::new(&self.env, &self.token)
+                    .mint(&self.treasury_addr, amount);
+            }
+            SimStep::DepositToTreasuryStrategy { amount } => {
+                let treasury = self.treasury_addr.clone();
+                self.treasury_strategies
+                    .deposit(&treasury, &self.token, amount);
+            }
+            SimStep::RequestTreasuryWithdrawal {
+                strategy_id,
+                amount,
+            } => {
+                let treasury = self.treasury_addr.clone();
+                self.treasury_strategies
+                    .request_withdrawal(&treasury, strategy_id, amount);
+            }
+            SimStep::ClaimTreasuryWithdrawal { withdrawal_id } => {
+                self.treasury_strategies.claim_withdrawal(withdrawal_id);
+            }
+            SimStep::ExpectTreasuryAllocation {
+                strategy_id,
+                amount,
+            } => {
+                let actual = self.treasury_strategies.get_allocation(strategy_id).amount;
+                if actual != *amount {
+                    panic!(
+                        "expected strategy {} to hold an allocation of {}, was {}",
+                        strategy_id, amount, actual
+                    );
+                }
+            }
+            SimStep::ExpectTreasuryBalance { balance } => {
+                let actual =
+                    token::TokenClient::new(&self.env, &self.token).balance(&self.treasury_addr);
+                if actual != *balance {
+                    panic!(
+                        "expected the treasury to hold {} of the token, held {}",
+                        balance, actual
+                    );
+                }
+            }
+            SimStep::ExpectTreasuryTotalValue { total } => {
+                let actual = self.treasury_strategies.get_total_value(&self.token);
+                if actual != *total {
+                    panic!(
+                        "expected treasury strategies to report a total value of {}, was {}",
+                        total, actual
                     );
                 }
             }

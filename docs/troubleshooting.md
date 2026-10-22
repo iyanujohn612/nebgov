@@ -424,6 +424,18 @@ Common errors when interacting with NebGov on Stellar, along with their causes a
 
 ---
 
+### `Proposal threshold not met` (`GovernorError::ProposalThresholdNotMet`)
+
+**Cause:** The proposer's voting power is below their effective proposal threshold. The effective threshold is the governor's flat `proposal_threshold` multiplied by the proposer's reputation multiplier, so it can be up to 2x the flat value. Repeated defeated, cancelled, or expired proposals raise it. The flat value shown in the governor settings is not the threshold this address must meet.
+
+**Fix:**
+1. Call `governor.get_effective_threshold(proposer)` to see the threshold this address must meet, and compare it with the flat `proposal_threshold` in the governor settings.
+2. Call `governor.get_proposer_reputation(proposer)` to see the score and `threshold_multiplier_bps`.
+3. Acquire or delegate more voting power (see `Insufficient voting power`), or have other holders co-sponsor the proposal ([co-sponsorship.md](./co-sponsorship.md)).
+4. The score recovers as proposals succeed and are executed. It also decays toward zero over time. Call `governor.apply_reputation_decay(proposer)` to apply decay to a stale record. See [parameter-guide.md](./parameter-guide.md#proposer-reputation) for the scoring rules.
+
+---
+
 ## Liquidity Contract Errors
 
 ### `Imbalanced deposit: amount_b below required ratio`

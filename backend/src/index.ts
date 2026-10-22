@@ -20,6 +20,7 @@ import { deliveryRetry } from "./jobs/delivery-retry";
 import { signalAnchorService } from "./jobs/signal-anchor";
 import { governanceTuningAnalyzer } from "./jobs/governance-tuning-analyzer";
 import { votingRewardsEpochService } from "./jobs/voting-rewards-epoch";
+import { treasuryStreamsExecutor } from "./jobs/treasury-streams-executor";
 import { jobHealthTracker } from "./jobs/health-tracker";
 import { runBackendMigrations } from "./db/migrationRunner";
 import pino from "pino";
@@ -167,6 +168,11 @@ async function bootstrap(): Promise<void> {
 
     // Start the voting participation rewards epoch service (issue #1011)
     votingRewardsEpochService.start();
+
+    // Pay due intervals on treasury streams, only when the contract is configured
+    if (process.env.TREASURY_STREAMS_CONTRACT_ID) {
+      treasuryStreamsExecutor.start();
+    }
   });
 }
 

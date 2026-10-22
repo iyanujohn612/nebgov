@@ -41,6 +41,14 @@ export { VotingRewardsClient } from "./votingRewards";
 export type { VotingRewardsConfig } from "./votingRewards";
 export { TreasuryStrategiesClient } from "./treasuryStrategies";
 export type { TreasuryStrategiesConfig } from "./treasuryStrategies";
+export {
+  TreasuryStreamsClient,
+  TreasuryStreamsError,
+  TreasuryStreamsErrorCode,
+  mapTreasuryStream,
+  parseTreasuryStreamsError,
+} from "./treasuryStreams";
+export type { TreasuryStream, TreasuryStreamsConfig } from "./treasuryStreams";
 export { validateNetwork, getRpcUrl, getNetworkPassphrase, RPC_URLS, NETWORK_PASSPHRASES } from "./network";
 export {
   GovernorError,

@@ -510,6 +510,24 @@ fn test_voting_rewards_scenario_passes() {
 }
 
 #[test]
+fn test_treasury_strategies_scenario_passes() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("src/scenarios/treasury_strategies.json");
+    let scenario = Scenario::from_file(&path).expect("treasury_strategies.json parses");
+    scenario
+        .validate()
+        .expect("treasury_strategies.json is valid");
+
+    let mut runner = SimulationRunner::new(&scenario);
+    runner.run();
+    runner.check_expect_errors();
+    let report = runner.get_report();
+
+    assert_eq!(report.total_steps, scenario.steps.len());
+    assert_eq!(report.failed_steps, 0, "steps: {:#?}", report.step_results);
+}
+
+#[test]
 fn test_reward_claims_verify_against_odd_sized_multi_level_tree() {
     // Five leaves: three tree levels, and an odd node promoted unchanged at
     // each of the first two, so every claimant's proof has a different

@@ -537,6 +537,20 @@ describe("GET /proposals with cursor pagination", () => {
     });
   });
 
+  describe("GET /reputation/:address/history ordering", () => {
+    it("reads the newest rows first and returns each page oldest-first", async () => {
+      (mockPool.query as jest.Mock).mockResolvedValueOnce({ rows: [] });
+
+      await request(app).get("/reputation/GADDR/history?limit=10&offset=20");
+
+      const calls = (mockPool.query as jest.Mock).mock.calls;
+      const [sql, params] = calls[calls.length - 1];
+      expect(sql).toContain("ORDER BY ledger DESC");
+      expect(sql).toContain("ORDER BY ledger ASC");
+      expect(params).toEqual(["GADDR", 20, 10]);
+    });
+  });
+
   describe("GET /reputation/:address/threshold-history (issue #919)", () => {
     it("should paginate results and report hasMore", async () => {
       const mockRows = [

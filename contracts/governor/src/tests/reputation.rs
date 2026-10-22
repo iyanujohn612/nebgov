@@ -68,6 +68,7 @@ struct Harness {
     governor: GovernorContractClient<'static>,
     governor_id: Address,
     votes: ReputationTestVotesContractClient<'static>,
+    guardian: Address,
 }
 
 /// Total supply is fixed at 10,000 across all tests; individual voter/
@@ -78,6 +79,27 @@ fn setup(
     quorum_numerator: u32,
     proposal_threshold: i128,
     proposal_grace_period: u32,
+) -> Harness {
+    setup_with_min_delay(
+        voting_delay,
+        voting_period,
+        quorum_numerator,
+        proposal_threshold,
+        proposal_grace_period,
+        1,
+    )
+}
+
+/// Same as `setup`, but with a configurable timelock `min_delay` (seconds).
+/// The veto window for `cancel_queued` is `min_delay / 5` ledgers, so tests
+/// that cancel a queued proposal need a delay longer than one ledger.
+fn setup_with_min_delay(
+    voting_delay: u32,
+    voting_period: u32,
+    quorum_numerator: u32,
+    proposal_threshold: i128,
+    proposal_grace_period: u32,
+    min_delay: u64,
 ) -> Harness {
     let env = Env::default();
     env.mock_all_auths();
@@ -92,7 +114,7 @@ fn setup(
     let timelock = TimelockContractClient::new(&env, &timelock_id);
     let governor = GovernorContractClient::new(&env, &governor_id);
 
-    timelock.initialize(&admin, &governor_id, &1u64, &1_209_600u64);
+    timelock.initialize(&admin, &governor_id, &min_delay, &1_209_600u64);
 
     let guardian = Address::generate(&env);
     governor.initialize(
@@ -113,6 +135,7 @@ fn setup(
         governor,
         governor_id,
         votes,
+        guardian,
     }
 }
 
@@ -459,4 +482,90 @@ fn test_propose_uses_effective_threshold_not_flat_threshold() {
         &soroban_sdk::vec![&h.env, Bytes::new(&h.env)],
     );
     assert!(result.is_err());
+}
+
+#[test]
+fn test_queue_then_cancel_queued_applies_cancelled_penalty() {
+    // min_delay = 500s => veto window of 100 ledgers after queue().
+    let h = setup_with_min_delay(10, 20, 20, 0, 120_960, 500);
+    let proposer = Address::generate(&h.env);
+    h.votes.set_votes(&proposer, &100_000i128);
+    let voter_a = Address::generate(&h.env);
+    let voter_b = Address::generate(&h.env);
+    h.votes.set_votes(&voter_a, &1_000i128);
+    h.votes.set_votes(&voter_b, &1_000i128);
+
+    let proposal_id = propose_dummy(&h.env, &h.governor, &proposer, b"queue-cancel-1");
+
+    h.env.ledger().with_mut(|l| l.sequence_number = 11);
+    h.governor.cast_vote(&voter_a, &proposal_id, &VoteSupport::For);
+    h.governor.cast_vote(&voter_b, &proposal_id, &VoteSupport::For);
+
+    h.env.ledger().with_mut(|l| l.sequence_number = 31);
+    h.governor.queue(&proposal_id);
+
+    // Still inside the veto window (queued at ledger 31, window ends at 131).
+    h.env.ledger().with_mut(|l| l.sequence_number = 40);
+    h.governor.cancel_queued(&h.guardian, &proposal_id);
+
+    // queue() recorded Succeeded (+100); cancel_queued() adds Cancelled (-20).
+    let rep = h.governor.get_proposer_reputation(&proposer);
+    assert_eq!(rep.reputation_score, 80);
+    assert_eq!(rep.consecutive_failed, 1);
+    assert_eq!(rep.consecutive_successful, 0);
+}
+
+#[test]
+fn test_cancel_by_governance_after_defeat_penalises_only_once() {
+    let h = setup(10, 20, 20, 0, 120_960);
+    let proposer = Address::generate(&h.env);
+    h.votes.set_votes(&proposer, &100_000i128);
+    let voter = Address::generate(&h.env);
+    h.votes.set_votes(&voter, &1_000i128); // below the 2000 quorum requirement
+
+    let proposal_id = propose_dummy(&h.env, &h.governor, &proposer, b"defeat-then-gov-cancel");
+
+    h.env.ledger().with_mut(|l| l.sequence_number = 11);
+    h.governor.cast_vote(&voter, &proposal_id, &VoteSupport::For);
+
+    // Natural outcome: Defeated (-30), recorded once when state() is read.
+    h.env.ledger().with_mut(|l| l.sequence_number = 31);
+    assert_eq!(h.governor.state(&proposal_id), ProposalState::Defeated);
+
+    // Governance then cancels the already-defeated proposal. It must not
+    // apply a second penalty on top of the Defeated one.
+    h.governor.cancel_by_governance(&proposal_id);
+
+    let rep = h.governor.get_proposer_reputation(&proposer);
+    assert_eq!(rep.reputation_score, -30);
+    assert_eq!(rep.consecutive_failed, 1);
+}
+
+#[test]
+fn test_self_cancel_pending_scored_same_as_guardian_veto() {
+    // Documents the current behaviour: a proposer withdrawing their own
+    // Pending proposal and a guardian veto of an Active proposal both record
+    // the `Cancelled` outcome (-20). Separating the two is a scoring-policy
+    // decision; this test pins what ships today so a change is deliberate.
+    let h = setup(10, 20, 20, 0, 120_960);
+
+    let self_cancelled = Address::generate(&h.env);
+    h.votes.set_votes(&self_cancelled, &100_000i128);
+    let pending_id = propose_dummy(&h.env, &h.governor, &self_cancelled, b"self-cancel-pending");
+    // start_ledger = 0 + voting_delay(10) => still Pending at ledger 0.
+    h.governor.cancel(&self_cancelled, &pending_id);
+
+    let rep = h.governor.get_proposer_reputation(&self_cancelled);
+    assert_eq!(rep.reputation_score, -20);
+    assert_eq!(rep.consecutive_failed, 1);
+
+    let vetoed = Address::generate(&h.env);
+    h.votes.set_votes(&vetoed, &100_000i128);
+    let active_id = propose_dummy(&h.env, &h.governor, &vetoed, b"guardian-veto-active");
+    h.env.ledger().with_mut(|l| l.sequence_number = 11);
+    h.governor.cancel(&h.guardian, &active_id);
+
+    let rep = h.governor.get_proposer_reputation(&vetoed);
+    assert_eq!(rep.reputation_score, -20);
+    assert_eq!(rep.consecutive_failed, 1);
 }

@@ -9,6 +9,7 @@ use soroban_sdk::{
 const MIN_LOCK_DURATION: u32 = 100;
 const MAX_LOCK_DURATION: u32 = 10_000;
 const MAX_MULTIPLIER_BPS: u32 = 25_000; // 2.5x multiplier at max duration
+const MINT_AMOUNT: i128 = 1_000_000_000;
 
 struct Fixture {
     env: Env,
@@ -26,8 +27,12 @@ fn setup() -> Fixture {
     let admin = Address::generate(&env);
     let user = Address::generate(&env);
     let user2 = Address::generate(&env);
-    let token = Address::generate(&env);
+    // A real token contract, so create_lock and withdraw can transfer balances.
+    let token = env.register_stellar_asset_contract_v2(admin.clone()).address();
     let contract_id = env.register(VoteEscrowContract, ());
+    let sac = token::StellarAssetClient::new(&env, &token);
+    sac.mint(&user, &MINT_AMOUNT);
+    sac.mint(&user2, &MINT_AMOUNT);
 
     // Initialize contract
     env.as_contract(&contract_id, || {
@@ -139,14 +144,19 @@ fn test_create_lock_updates_total() {
 #[test]
 fn test_get_past_total_supply_checkpoint_boundaries() {
     let f = setup();
-    let checkpoints: Vec<(u32, i128)> =
-        Vec::from_array(&f.env, [(10, 100), (20, 200), (30, 300)]);
+    let checkpoints = [(10u32, 100i128), (20, 200), (30, 300)];
 
     f.env.as_contract(&f.contract_id, || {
+        for (index, checkpoint) in checkpoints.iter().enumerate() {
+            f.env
+                .storage()
+                .persistent()
+                .set(&DataKey::GlobalCheckpoint(index as u32), checkpoint);
+        }
         f.env
             .storage()
             .instance()
-            .set(&DataKey::GlobalCheckpoints, &checkpoints);
+            .set(&DataKey::GlobalCheckpointCount, &(checkpoints.len() as u32));
 
         assert_eq!(VoteEscrowContract::get_past_total_supply(f.env.clone(), 20), 200);
         assert_eq!(VoteEscrowContract::get_past_total_supply(f.env.clone(), 25), 200);
@@ -849,6 +859,52 @@ fn test_update_escrow_config() {
     });
 }
 
+#[test]
+#[should_panic(expected = "Error(Contract, #9)")]
+fn test_update_escrow_config_rejects_non_admin() {
+    let f = setup();
+    let client = VoteEscrowContractClient::new(&f.env, &f.contract_id);
+
+    // `mock_all_auths` lets the intruder pass `require_auth`, so only the
+    // stored-admin comparison can reject this call.
+    client.update_escrow_config(&f.user, &50, &5_000, &10_000);
+}
+
+#[test]
+fn test_update_escrow_config_keeps_config_after_rejected_non_admin() {
+    let f = setup();
+    let client = VoteEscrowContractClient::new(&f.env, &f.contract_id);
+
+    let result = client.try_update_escrow_config(&f.user, &50, &5_000, &10_000);
+    assert!(result.is_err());
+
+    f.env.as_contract(&f.contract_id, || {
+        let stored_min: u32 = f
+            .env
+            .storage()
+            .instance()
+            .get(&DataKey::MinLockDuration)
+            .unwrap();
+        assert_eq!(stored_min, MIN_LOCK_DURATION);
+
+        let stored_max: u32 = f
+            .env
+            .storage()
+            .instance()
+            .get(&DataKey::MaxLockDuration)
+            .unwrap();
+        assert_eq!(stored_max, MAX_LOCK_DURATION);
+
+        let stored_multiplier: u32 = f
+            .env
+            .storage()
+            .instance()
+            .get(&DataKey::MaxMultiplierBps)
+            .unwrap();
+        assert_eq!(stored_multiplier, MAX_MULTIPLIER_BPS);
+    });
+}
+
 /// Finds the first event published by `contract_id` whose first topic is
 /// `topic`, and returns its full topic list and payload. Panics if none
 /// matches, so a missing/renamed event fails the test loudly.
@@ -1017,7 +1073,7 @@ fn test_lock_history_is_bounded_across_many_cycles() {
         let mut ledger = 10;
         for _ in 0..cycles {
             f.env.ledger().set_sequence_number(ledger);
-let _lock = VoteEscrowContract::create_lock(
+            let lock = VoteEscrowContract::create_lock(
                 f.env.clone(),
                 f.user.clone(),
                 amount,
@@ -1085,5 +1141,136 @@ fn test_get_past_votes_reads_bounded_history_after_withdraw() {
             VoteEscrowContract::get_past_votes(f.env.clone(), f.user.clone(), probe);
         assert!(votes > 0);
         assert!(votes <= lock.initial_voting_power);
+    });
+}
+
+#[test]
+fn test_uninitialized_contract_returns_typed_error() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let user = Address::generate(&env);
+    let contract_id = env.register(VoteEscrowContract, ());
+    let client = VoteEscrowContractClient::new(&env, &contract_id);
+
+    assert!(matches!(client.try_get_admin(), Err(Ok(VoteEscrowError::NotInitialized))));
+    assert!(matches!(client.try_token(), Err(Ok(VoteEscrowError::NotInitialized))));
+    assert!(matches!(client.try_get_total_locked(), Err(Ok(VoteEscrowError::NotInitialized))));
+    assert!(matches!(
+        client.try_create_lock(&user, &1_000, &MIN_LOCK_DURATION),
+        Err(Ok(VoteEscrowError::NotInitialized))
+    ));
+}
+
+#[test]
+fn test_late_top_up_does_not_restore_decayed_boost() {
+    let f = setup();
+
+    f.env.as_contract(&f.contract_id, || {
+        f.env.ledger().set_sequence_number(1_000);
+        let lock = VoteEscrowContract::create_lock(
+            f.env.clone(),
+            f.user.clone(),
+            1_000,
+            MAX_LOCK_DURATION,
+        );
+        // Full-length lock: a 2.5x boost on 1_000 tokens, so 1_000 + 2_500.
+        assert_eq!(lock.initial_voting_power, 3_500);
+
+        // Halfway through, the boost has decayed to 1_250, so power is 2_250.
+        f.env.ledger().set_sequence_number(6_000);
+        assert_eq!(VoteEscrowContract::get_votes(f.env.clone(), f.user.clone()), 2_250);
+
+        // The top-up is priced as a fresh lock for the 5_000 ledgers left: a boost
+        // of 1_237 on 1_000 tokens, so 2_237. Total 2_250 + 2_237 = 4_487. Pricing it
+        // on the full 10_000-ledger duration would have given 4_500.
+        let topped_up = VoteEscrowContract::increase_lock_amount(
+            f.env.clone(),
+            f.user.clone(),
+            1_000,
+        );
+        assert_eq!(topped_up.amount, 2_000);
+        assert_eq!(topped_up.end_ledger, lock.end_ledger);
+        assert_eq!(VoteEscrowContract::get_votes(f.env.clone(), f.user.clone()), 4_487);
+    });
+}
+
+#[test]
+fn test_withdrawn_lock_counts_inside_its_original_window() {
+    let f = setup();
+
+    f.env.as_contract(&f.contract_id, || {
+        f.env.ledger().set_sequence_number(100);
+        // At the minimum duration there is no boost, so power is exactly the deposit.
+        let lock = VoteEscrowContract::create_lock(
+            f.env.clone(),
+            f.user.clone(),
+            1_000,
+            MIN_LOCK_DURATION,
+        );
+
+        f.env.ledger().set_sequence_number(lock.end_ledger);
+        VoteEscrowContract::withdraw(f.env.clone(), f.user.clone());
+        assert!(VoteEscrowContract::get_lock(f.env.clone(), f.user.clone()).is_none());
+
+        // Inside [start_ledger, end_ledger) the withdrawn record still carries power.
+        assert_eq!(
+            VoteEscrowContract::get_past_votes(f.env.clone(), f.user.clone(), lock.start_ledger),
+            1_000
+        );
+        assert_eq!(
+            VoteEscrowContract::get_past_votes(
+                f.env.clone(),
+                f.user.clone(),
+                lock.end_ledger - 1
+            ),
+            1_000
+        );
+        // At end_ledger the window has closed.
+        assert_eq!(
+            VoteEscrowContract::get_past_votes(f.env.clone(), f.user.clone(), lock.end_ledger),
+            0
+        );
+    });
+}
+
+#[test]
+fn test_global_checkpoints_are_stored_per_index() {
+    let f = setup();
+
+    f.env.as_contract(&f.contract_id, || {
+        f.env.ledger().set_sequence_number(100);
+        VoteEscrowContract::create_lock(f.env.clone(), f.user.clone(), 1_000, MIN_LOCK_DURATION);
+        f.env.ledger().set_sequence_number(150);
+        VoteEscrowContract::create_lock(f.env.clone(), f.user2.clone(), 2_000, MIN_LOCK_DURATION);
+
+        let count: u32 = f
+            .env
+            .storage()
+            .instance()
+            .get(&DataKey::GlobalCheckpointCount)
+            .unwrap_or(0);
+        assert_eq!(count, 2);
+
+        // Each operation appends one entry under its own key.
+        let first: (u32, i128) = f
+            .env
+            .storage()
+            .persistent()
+            .get(&DataKey::GlobalCheckpoint(0))
+            .unwrap();
+        assert_eq!(first, (100, 1_000));
+        let second: (u32, i128) = f
+            .env
+            .storage()
+            .persistent()
+            .get(&DataKey::GlobalCheckpoint(1))
+            .unwrap();
+        assert_eq!(second, (150, 3_000));
+
+        assert_eq!(VoteEscrowContract::get_past_total_supply(f.env.clone(), 99), 0);
+        assert_eq!(VoteEscrowContract::get_past_total_supply(f.env.clone(), 100), 1_000);
+        assert_eq!(VoteEscrowContract::get_past_total_supply(f.env.clone(), 149), 1_000);
+        assert_eq!(VoteEscrowContract::get_past_total_supply(f.env.clone(), 150), 3_000);
     });
 }

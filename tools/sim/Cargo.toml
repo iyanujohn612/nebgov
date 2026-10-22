@@ -14,6 +14,7 @@ sorogov-governor = { path = "../../contracts/governor" }
 sorogov-timelock = { path = "../../contracts/timelock" }
 sorogov-token-votes = { path = "../../contracts/token-votes" }
 sorogov-treasury = { path = "../../contracts/treasury" }
+sorogov-treasury-strategies = { path = "../../contracts/treasury-strategies" }
 sorogov-co-sponsorship = { path = "../../contracts/co-sponsorship" }
 sorogov-conviction-voting = { path = "../../contracts/conviction-voting" }
 sorogov-proposal-bonds = { path = "../../contracts/proposal-bonds" }

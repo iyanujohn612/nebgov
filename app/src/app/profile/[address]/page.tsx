@@ -334,7 +334,8 @@ function VoterProfilePageContent() {
         const indexerUrl = process.env.NEXT_PUBLIC_INDEXER_URL;
         if (!indexerUrl) return;
 
-        const resp = await fetch(`${indexerUrl}/reputation/${address}/history`, {
+        // The indexer pages from the newest entry, so this is the most recent 200.
+        const resp = await fetch(`${indexerUrl}/reputation/${address}/history?limit=200`, {
           cache: "no-store",
         });
         if (resp.ok) {

@@ -1066,9 +1066,17 @@ async function handleReputationUpdated(
   event: SorobanRpc.Api.EventResponse,
   topics: unknown[],
 ): Promise<void> {
-  const proposer = topics[1] as string;
-  const data = scValToNative(event.value) as [string, number, number, string];
-  const [, oldScore, newScore, reason] = data;
+  // The contract emits a #[contracttype] struct, which decodes to an object.
+  const data = scValToNative(event.value) as {
+    proposer: string;
+    old_score: number;
+    new_score: number;
+    reason: string;
+  };
+  const proposer = String(data.proposer ?? topics[1]);
+  const oldScore = Number(data.old_score);
+  const newScore = Number(data.new_score);
+  const reason = String(data.reason);
 
   await pool.query(
     `INSERT INTO proposer_reputation (proposer_address, reputation_score, last_updated_ledger)
@@ -1094,9 +1102,15 @@ async function handleEffectiveThresholdChanged(
   event: SorobanRpc.Api.EventResponse,
   topics: unknown[],
 ): Promise<void> {
-  const proposer = topics[1] as string;
-  const data = scValToNative(event.value) as [string, bigint, bigint];
-  const [, oldThreshold, newThreshold] = data;
+  // The contract emits a #[contracttype] struct, which decodes to an object.
+  const data = scValToNative(event.value) as {
+    proposer: string;
+    old_threshold: bigint;
+    new_threshold: bigint;
+  };
+  const proposer = String(data.proposer ?? topics[1]);
+  const oldThreshold = BigInt(data.old_threshold);
+  const newThreshold = BigInt(data.new_threshold);
 
   await pool.query(
     `INSERT INTO effective_threshold_history (proposer_address, ledger, old_threshold, new_threshold)

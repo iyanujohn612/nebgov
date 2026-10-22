@@ -389,6 +389,48 @@ pub enum SimStep {
         #[serde(with = "i128_compat")]
         balance: i128,
     },
+    /// Register a strategy for the harness token on the harness's mock
+    /// adapter, called as the treasury-strategies admin. Strategy ids are
+    /// assigned sequentially from 1.
+    RegisterTreasuryStrategy {
+        max_allocation_bps: u32,
+        withdrawal_cooldown_ledgers: u32,
+    },
+    /// Mint `amount` of the harness token to the treasury contract.
+    FundTreasury {
+        #[serde(with = "i128_compat")]
+        amount: i128,
+    },
+    /// Move `amount` out of the treasury into the least-allocated active
+    /// strategy, called as the treasury like an outbound multisig transfer.
+    DepositToTreasuryStrategy {
+        #[serde(with = "i128_compat")]
+        amount: i128,
+    },
+    /// Request a withdrawal of `amount` from `strategy_id`, called as the
+    /// treasury. Withdrawal ids are assigned sequentially from 1.
+    RequestTreasuryWithdrawal {
+        strategy_id: u64,
+        #[serde(with = "i128_compat")]
+        amount: i128,
+    },
+    /// Claim `withdrawal_id` once its cooldown has elapsed. Permissionless.
+    ClaimTreasuryWithdrawal {
+        withdrawal_id: u64,
+    },
+    ExpectTreasuryAllocation {
+        strategy_id: u64,
+        #[serde(with = "i128_compat")]
+        amount: i128,
+    },
+    ExpectTreasuryBalance {
+        #[serde(with = "i128_compat")]
+        balance: i128,
+    },
+    ExpectTreasuryTotalValue {
+        #[serde(with = "i128_compat")]
+        total: i128,
+    },
 }
 
 impl SimStep {
@@ -457,6 +499,14 @@ impl SimStep {
             SimStep::ExpectAvailableRewardsPool { .. } => "ExpectAvailableRewardsPool",
             SimStep::ExpectRewardClaimed { .. } => "ExpectRewardClaimed",
             SimStep::ExpectRewardBalance { .. } => "ExpectRewardBalance",
+            SimStep::RegisterTreasuryStrategy { .. } => "RegisterTreasuryStrategy",
+            SimStep::FundTreasury { .. } => "FundTreasury",
+            SimStep::DepositToTreasuryStrategy { .. } => "DepositToTreasuryStrategy",
+            SimStep::RequestTreasuryWithdrawal { .. } => "RequestTreasuryWithdrawal",
+            SimStep::ClaimTreasuryWithdrawal { .. } => "ClaimTreasuryWithdrawal",
+            SimStep::ExpectTreasuryAllocation { .. } => "ExpectTreasuryAllocation",
+            SimStep::ExpectTreasuryBalance { .. } => "ExpectTreasuryBalance",
+            SimStep::ExpectTreasuryTotalValue { .. } => "ExpectTreasuryTotalValue",
         }
     }
 }

@@ -140,6 +140,43 @@ DEPLOYER_ADDR=<YOUR_ADDRESS> \
 
 The script builds the WASM, installs it on-chain, and submits an `upgrade(wasm_hash)` governance proposal. Follow the printed next-steps to vote, queue, and execute the proposal.
 
+## 3.7 Deploy and initialize the optional modules
+
+The five newest contracts are optional and are not deployed by `scripts/deploy-testnet.sh`. Deploy only the ones your instance needs, using the same `stellar contract deploy` pattern as section 3.3 with these artifacts:
+
+- `sorogov_proposal_bonds.wasm`
+- `sorogov_optimistic_governor.wasm`
+- `sorogov_conviction_voting.wasm`
+- `sorogov_treasury_strategies.wasm`
+- `sorogov_signal_anchor.wasm`
+
+Each contract must be initialized once, right after deployment. `initialize` requires the admin's authorization and fails with `AlreadyInitialized` if it is called again. Deploy and initialize the core contracts first, because several of these modules take the governor, votes token, or treasury address as an argument.
+
+| Contract | Depends on | `initialize` arguments |
+| --- | --- | --- |
+| Proposal bonds | Governor, bond token (SEP-41) | `admin`, `bond_token`, `bond_amount` (must be > 0), `governor`, `refund_grace_ledgers`, `max_lock_ledgers` |
+| Optimistic governor | Votes token (`sorogov_token_votes`) | `admin`, `votes_token`, `challenge_window_ledgers` (must be > 0), `objection_threshold_bps` (1–10000), `proposer_bond_amount` (≥ 0, `0` disables the bond), `proposer_bond_token` |
+| Conviction voting | Votes token (`sorogov_token_votes`) | `admin`, `votes_token`, `decay_bps` (1–9999), `max_ratio_bps` (1–10000), `min_threshold_conviction` (must be > 0), `weight_bps` (1–10000) |
+| Treasury strategies | Treasury (`sorogov_treasury`) | `admin`, `treasury` |
+| Signal anchor | None | `admin` |
+
+Initialize each deployed contract with the `stellar contract invoke` pattern from section 3.5. For example, for the signal anchor:
+
+```bash
+stellar contract invoke \
+  --id <SIGNAL_ANCHOR_ID> \
+  --source nebgov-prod \
+  --network public \
+  -- initialize \
+  --admin <ADMIN_ADDRESS>
+```
+
+Follow the same pattern for the other contracts, passing the arguments from the table above. Use the contract IDs you recorded in section 3.4 for any address argument.
+
+After initializing the treasury strategies contract, register at least one yield adapter with `register_strategy`. Its arguments are `admin`, `adapter`, `token`, `max_allocation_bps` (≤ 10000), and `withdrawal_cooldown_ledgers`. Only the treasury can call `deposit` and `request_withdrawal`, so keep the `treasury` argument set to the treasury contract ID. See [treasury-strategies.md](./treasury-strategies.md) for the adapter model and governance controls.
+
+Verify each deployment with `stellar contract inspect` (section 3.4) and record its contract ID with the others.
+
 ## 4. Deploy the backend
 
 ### 4.1 Prepare the database

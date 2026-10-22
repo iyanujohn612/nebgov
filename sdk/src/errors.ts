@@ -333,8 +333,8 @@ export enum VoteEscrowErrorCode {
   InvalidDuration = 5,
   InvalidAmount = 6,
   InvalidEndLedger = 7,
-  Unauthorized = 8,
-  ArithmeticOverflow = 9,
+  ArithmeticOverflow = 8,
+  Unauthorized = 9,
 
   // SDK-level codes
   SimulationFailed = 100,

@@ -34,7 +34,11 @@ pub enum DataKey {
     /// holds the `n`-th appended (withdrawn) lock record.
     LockHistoryEntry(Address, u32),
     TotalLocked,
-    GlobalCheckpoints,
+    /// Number of global total-supply checkpoints appended so far.
+    GlobalCheckpointCount,
+    /// Checkpoint `i` is `(ledger, total_locked)`, stored under its own key so
+    /// appending one checkpoint never rewrites the earlier history.
+    GlobalCheckpoint(u32),
 }
 
 /// Maximum number of withdrawn lock records retained per owner.
@@ -81,10 +85,9 @@ impl VoteEscrowContract {
             .instance()
             .set(&DataKey::TotalLocked, &0i128);
 
-        let checkpoints: Vec<(u32, i128)> = Vec::new(&env);
         env.storage()
             .instance()
-            .set(&DataKey::GlobalCheckpoints, &checkpoints);
+            .set(&DataKey::GlobalCheckpointCount, &0u32);
     }
 
     pub fn create_lock(env: Env, owner: Address, amount: i128, duration_ledgers: u32) -> Lock {
@@ -94,14 +97,12 @@ impl VoteEscrowContract {
             .storage()
             .instance()
             .get(&DataKey::MinLockDuration)
-            .ok_or(VoteEscrowError::NotInitialized)
-            .unwrap();
+            .unwrap_or_else(|| env.panic_with_error(VoteEscrowError::NotInitialized));
         let max_duration: u32 = env
             .storage()
             .instance()
             .get(&DataKey::MaxLockDuration)
-            .ok_or(VoteEscrowError::NotInitialized)
-            .unwrap();
+            .unwrap_or_else(|| env.panic_with_error(VoteEscrowError::NotInitialized));
 
         if duration_ledgers < min_duration || duration_ledgers > max_duration {
             env.panic_with_error(VoteEscrowError::InvalidDuration);
@@ -130,20 +131,17 @@ impl VoteEscrowContract {
             .storage()
             .instance()
             .get(&DataKey::LockedToken)
-            .ok_or(VoteEscrowError::NotInitialized)
-            .unwrap();
+            .unwrap_or_else(|| env.panic_with_error(VoteEscrowError::NotInitialized));
 
         let current_ledger = env.ledger().sequence();
         let end_ledger = current_ledger.checked_add(duration_ledgers)
-            .ok_or(VoteEscrowError::ArithmeticOverflow)
-            .unwrap();
+            .unwrap_or_else(|| env.panic_with_error(VoteEscrowError::ArithmeticOverflow));
 
         let max_multiplier_bps: u32 = env
             .storage()
             .instance()
             .get(&DataKey::MaxMultiplierBps)
-            .ok_or(VoteEscrowError::NotInitialized)
-            .unwrap();
+            .unwrap_or_else(|| env.panic_with_error(VoteEscrowError::NotInitialized));
 
         let initial_voting_power =
             Self::compute_initial_voting_power(&env, amount, duration_ledgers, min_duration, max_duration, max_multiplier_bps);
@@ -170,8 +168,7 @@ impl VoteEscrowContract {
             .get(&DataKey::TotalLocked)
             .unwrap_or(0);
         let new_total = current_total.checked_add(amount)
-            .ok_or(VoteEscrowError::ArithmeticOverflow)
-            .unwrap();
+            .unwrap_or_else(|| env.panic_with_error(VoteEscrowError::ArithmeticOverflow));
         env.storage()
             .instance()
             .set(&DataKey::TotalLocked, &new_total);
@@ -194,8 +191,7 @@ impl VoteEscrowContract {
             .storage()
             .persistent()
             .get(&DataKey::Lock(owner.clone()))
-            .ok_or(VoteEscrowError::LockNotFound)
-            .unwrap();
+            .unwrap_or_else(|| env.panic_with_error(VoteEscrowError::LockNotFound));
 
         if lock.withdrawn {
             env.panic_with_error(VoteEscrowError::LockAlreadyWithdrawn);
@@ -205,37 +201,64 @@ impl VoteEscrowContract {
             .storage()
             .instance()
             .get(&DataKey::LockedToken)
-            .ok_or(VoteEscrowError::NotInitialized)
-            .unwrap();
+            .unwrap_or_else(|| env.panic_with_error(VoteEscrowError::NotInitialized));
 
         token::Client::new(&env, &locked_token).transfer(&owner, &env.current_contract_address(), &additional_amount);
 
         let new_amount = lock.amount.checked_add(additional_amount)
-            .ok_or(VoteEscrowError::ArithmeticOverflow)
-            .unwrap();
+            .unwrap_or_else(|| env.panic_with_error(VoteEscrowError::ArithmeticOverflow));
 
         let min_duration: u32 = env
             .storage()
             .instance()
             .get(&DataKey::MinLockDuration)
-            .ok_or(VoteEscrowError::NotInitialized)
-            .unwrap();
+            .unwrap_or_else(|| env.panic_with_error(VoteEscrowError::NotInitialized));
         let max_duration: u32 = env
             .storage()
             .instance()
             .get(&DataKey::MaxLockDuration)
-            .ok_or(VoteEscrowError::NotInitialized)
-            .unwrap();
+            .unwrap_or_else(|| env.panic_with_error(VoteEscrowError::NotInitialized));
         let max_multiplier_bps: u32 = env
             .storage()
             .instance()
             .get(&DataKey::MaxMultiplierBps)
-            .ok_or(VoteEscrowError::NotInitialized)
-            .unwrap();
+            .unwrap_or_else(|| env.panic_with_error(VoteEscrowError::NotInitialized));
 
-        let remaining_duration = lock.end_ledger.saturating_sub(lock.start_ledger);
-        let new_initial_voting_power =
-            Self::compute_initial_voting_power(&env, new_amount, remaining_duration, min_duration, max_duration, max_multiplier_bps);
+        let current_ledger = env.ledger().sequence();
+        let total_duration = lock.end_ledger.saturating_sub(lock.start_ledger) as i128;
+        let remaining_duration = lock.end_ledger.saturating_sub(current_ledger);
+
+        // The existing balance keeps the boost it was granted. `compute_decayed_power`
+        // spreads that boost over the whole lock, so it continues to decay unchanged.
+        let existing_boost = lock.initial_voting_power.saturating_sub(lock.amount);
+
+        // The top-up is priced as a fresh lock for the time that remains, so a late
+        // top-up earns only the boost that remaining time buys. Scaling that boost by
+        // `total_duration / remaining_duration` makes the added boost decay to zero
+        // at `end_ledger` together with the rest of the balance.
+        let added_boost = if remaining_duration == 0 {
+            0
+        } else {
+            let fresh_power = Self::compute_initial_voting_power(
+                &env,
+                additional_amount,
+                remaining_duration,
+                min_duration,
+                max_duration,
+                max_multiplier_bps,
+            );
+            fresh_power
+                .saturating_sub(additional_amount)
+                .checked_mul(total_duration)
+                .unwrap_or_else(|| env.panic_with_error(VoteEscrowError::ArithmeticOverflow))
+                .checked_div(remaining_duration as i128)
+                .unwrap_or_else(|| env.panic_with_error(VoteEscrowError::ArithmeticOverflow))
+        };
+
+        let new_initial_voting_power = new_amount
+            .checked_add(existing_boost)
+            .and_then(|power| power.checked_add(added_boost))
+            .unwrap_or_else(|| env.panic_with_error(VoteEscrowError::ArithmeticOverflow));
 
         lock.amount = new_amount;
         lock.initial_voting_power = new_initial_voting_power;
@@ -251,13 +274,11 @@ impl VoteEscrowContract {
             .get(&DataKey::TotalLocked)
             .unwrap_or(0);
         let new_total = current_total.checked_add(additional_amount)
-            .ok_or(VoteEscrowError::ArithmeticOverflow)
-            .unwrap();
+            .unwrap_or_else(|| env.panic_with_error(VoteEscrowError::ArithmeticOverflow));
         env.storage()
             .instance()
             .set(&DataKey::TotalLocked, &new_total);
 
-        let current_ledger = env.ledger().sequence();
         Self::update_global_checkpoint(&env, current_ledger);
 
         emit_lock_increased(&env, &owner, additional_amount, lock.initial_voting_power);
@@ -272,8 +293,7 @@ impl VoteEscrowContract {
             .storage()
             .persistent()
             .get(&DataKey::Lock(owner.clone()))
-            .ok_or(VoteEscrowError::LockNotFound)
-            .unwrap();
+            .unwrap_or_else(|| env.panic_with_error(VoteEscrowError::LockNotFound));
 
         if lock.withdrawn {
             env.panic_with_error(VoteEscrowError::LockAlreadyWithdrawn);
@@ -287,20 +307,17 @@ impl VoteEscrowContract {
             .storage()
             .instance()
             .get(&DataKey::MinLockDuration)
-            .ok_or(VoteEscrowError::NotInitialized)
-            .unwrap();
+            .unwrap_or_else(|| env.panic_with_error(VoteEscrowError::NotInitialized));
         let max_duration: u32 = env
             .storage()
             .instance()
             .get(&DataKey::MaxLockDuration)
-            .ok_or(VoteEscrowError::NotInitialized)
-            .unwrap();
+            .unwrap_or_else(|| env.panic_with_error(VoteEscrowError::NotInitialized));
         let max_multiplier_bps: u32 = env
             .storage()
             .instance()
             .get(&DataKey::MaxMultiplierBps)
-            .ok_or(VoteEscrowError::NotInitialized)
-            .unwrap();
+            .unwrap_or_else(|| env.panic_with_error(VoteEscrowError::NotInitialized));
 
         let new_duration = new_end_ledger.saturating_sub(lock.start_ledger);
 
@@ -335,8 +352,7 @@ impl VoteEscrowContract {
             .storage()
             .persistent()
             .get(&DataKey::Lock(owner.clone()))
-            .ok_or(VoteEscrowError::LockNotFound)
-            .unwrap();
+            .unwrap_or_else(|| env.panic_with_error(VoteEscrowError::LockNotFound));
 
         if lock.withdrawn {
             env.panic_with_error(VoteEscrowError::LockAlreadyWithdrawn);
@@ -352,8 +368,7 @@ impl VoteEscrowContract {
             .storage()
             .instance()
             .get(&DataKey::LockedToken)
-            .ok_or(VoteEscrowError::NotInitialized)
-            .unwrap();
+            .unwrap_or_else(|| env.panic_with_error(VoteEscrowError::NotInitialized));
 
         token::Client::new(&env, &locked_token).transfer(
             &env.current_contract_address(),
@@ -375,8 +390,7 @@ impl VoteEscrowContract {
             .get(&DataKey::TotalLocked)
             .unwrap_or(0);
         let new_total = current_total.checked_sub(lock.amount)
-            .ok_or(VoteEscrowError::ArithmeticOverflow)
-            .unwrap();
+            .unwrap_or_else(|| env.panic_with_error(VoteEscrowError::ArithmeticOverflow));
         env.storage()
             .instance()
             .set(&DataKey::TotalLocked, &new_total);
@@ -400,7 +414,7 @@ impl VoteEscrowContract {
                     return 0;
                 }
                 let current_ledger = env.ledger().sequence();
-                Self::compute_decayed_power(&lock, current_ledger)
+                Self::compute_decayed_power(&env, &lock, current_ledger)
             }
             None => 0,
         }
@@ -412,12 +426,13 @@ impl VoteEscrowContract {
             .persistent()
             .get(&DataKey::Lock(account.clone()));
 
+        // A live lock carries power for its own `[start_ledger, end_ledger)` window.
+        // Withdrawn locks leave persistent storage, so their windows are served by
+        // the history scan below. Both count at historical ledgers, which keeps
+        // snapshot votes correct for locks that have since been withdrawn.
         if let Some(lock) = lock_opt {
-            if !lock.withdrawn && ledger >= lock.start_ledger && ledger < lock.end_ledger {
-                return Self::compute_decayed_power(&lock, ledger);
-            }
             if ledger >= lock.start_ledger && ledger < lock.end_ledger {
-                return Self::compute_decayed_power(&lock, ledger);
+                return Self::compute_decayed_power(&env, &lock, ledger);
             }
         }
 
@@ -427,7 +442,7 @@ impl VoteEscrowContract {
         for index in 0..retained {
             if let Some(historical_lock) = Self::read_lock_history_entry(&env, &account, index) {
                 if ledger >= historical_lock.start_ledger && ledger < historical_lock.end_ledger {
-                    return Self::compute_decayed_power(&historical_lock, ledger);
+                    return Self::compute_decayed_power(&env, &historical_lock, ledger);
                 }
             }
         }
@@ -436,40 +451,28 @@ impl VoteEscrowContract {
     }
 
     pub fn get_past_total_supply(env: Env, ledger: u32) -> i128 {
-        let checkpoints_opt: Option<Vec<(u32, i128)>> = env
-            .storage()
-            .instance()
-            .get(&DataKey::GlobalCheckpoints);
-
-        if let Some(checkpoints) = checkpoints_opt {
-            return Self::binary_search_checkpoint(&checkpoints, ledger);
-        }
-
-        0
+        Self::binary_search_checkpoint(&env, ledger)
     }
 
     pub fn token(env: Env) -> Address {
         env.storage()
             .instance()
             .get(&DataKey::LockedToken)
-            .ok_or(VoteEscrowError::NotInitialized)
-            .unwrap()
+            .unwrap_or_else(|| env.panic_with_error(VoteEscrowError::NotInitialized))
     }
 
     pub fn get_total_locked(env: Env) -> i128 {
         env.storage()
             .instance()
             .get(&DataKey::TotalLocked)
-            .ok_or(VoteEscrowError::NotInitialized)
-            .unwrap()
+            .unwrap_or_else(|| env.panic_with_error(VoteEscrowError::NotInitialized))
     }
 
     pub fn get_admin(env: Env) -> Address {
         env.storage()
             .instance()
             .get(&DataKey::Admin)
-            .ok_or(VoteEscrowError::NotInitialized)
-            .unwrap()
+            .unwrap_or_else(|| env.panic_with_error(VoteEscrowError::NotInitialized))
     }
 
     pub fn get_lock(env: Env, owner: Address) -> Option<Lock> {
@@ -544,7 +547,7 @@ impl VoteEscrowContract {
     }
 
     fn compute_initial_voting_power(
-        _env: &Env,
+        env: &Env,
         amount: i128,
         duration_ledgers: u32,
         min_duration: u32,
@@ -559,41 +562,33 @@ impl VoteEscrowContract {
         if duration_range == 0 {
             let boost = amount
                 .checked_mul(max_multiplier_bps as i128)
-                .ok_or(VoteEscrowError::ArithmeticOverflow)
-                .unwrap()
+                .unwrap_or_else(|| env.panic_with_error(VoteEscrowError::ArithmeticOverflow))
                 .checked_div(10000)
-                .ok_or(VoteEscrowError::ArithmeticOverflow)
-                .unwrap();
+                .unwrap_or_else(|| env.panic_with_error(VoteEscrowError::ArithmeticOverflow));
             return amount
                 .checked_add(boost)
-                .ok_or(VoteEscrowError::ArithmeticOverflow)
-                .unwrap();
+                .unwrap_or_else(|| env.panic_with_error(VoteEscrowError::ArithmeticOverflow));
         }
 
         let applicable_duration = (duration_ledgers.saturating_sub(min_duration)) as i128;
         let applicable_bps = applicable_duration
             .checked_mul(max_multiplier_bps as i128)
-            .ok_or(VoteEscrowError::ArithmeticOverflow)
-            .unwrap()
+            .unwrap_or_else(|| env.panic_with_error(VoteEscrowError::ArithmeticOverflow))
             .checked_div(duration_range)
-            .ok_or(VoteEscrowError::ArithmeticOverflow)
-            .unwrap();
+            .unwrap_or_else(|| env.panic_with_error(VoteEscrowError::ArithmeticOverflow));
 
         let boost = amount
             .checked_mul(applicable_bps)
-            .ok_or(VoteEscrowError::ArithmeticOverflow)
-            .unwrap()
+            .unwrap_or_else(|| env.panic_with_error(VoteEscrowError::ArithmeticOverflow))
             .checked_div(10000)
-            .ok_or(VoteEscrowError::ArithmeticOverflow)
-            .unwrap();
+            .unwrap_or_else(|| env.panic_with_error(VoteEscrowError::ArithmeticOverflow));
 
         amount
             .checked_add(boost)
-            .ok_or(VoteEscrowError::ArithmeticOverflow)
-            .unwrap()
+            .unwrap_or_else(|| env.panic_with_error(VoteEscrowError::ArithmeticOverflow))
     }
 
-    fn compute_decayed_power(lock: &Lock, current_ledger: u32) -> i128 {
+    fn compute_decayed_power(env: &Env, lock: &Lock, current_ledger: u32) -> i128 {
         if current_ledger >= lock.end_ledger {
             return lock.amount;
         }
@@ -612,8 +607,7 @@ impl VoteEscrowContract {
         let boost = lock.initial_voting_power.saturating_sub(lock.amount);
         let decayed_boost = boost
             .checked_mul(remaining)
-            .ok_or(VoteEscrowError::ArithmeticOverflow)
-            .unwrap()
+            .unwrap_or_else(|| env.panic_with_error(VoteEscrowError::ArithmeticOverflow))
             .checked_div(duration)
             .unwrap_or(0);
 
@@ -677,37 +671,56 @@ impl VoteEscrowContract {
             .get(&DataKey::LockHistoryEntry(owner.clone(), slot))
     }
 
+    /// Append `(ledger, total_locked)` as the next global checkpoint.
+    ///
+    /// Each checkpoint has its own persistent key, so appending costs the same
+    /// number of storage operations however long the history grows.
     fn update_global_checkpoint(env: &Env, ledger: u32) {
-        let mut checkpoints: Vec<(u32, i128)> = env
-            .storage()
-            .instance()
-            .get(&DataKey::GlobalCheckpoints)
-            .unwrap_or_else(|| Vec::new(env));
-
         let total_locked: i128 = env
             .storage()
             .instance()
             .get(&DataKey::TotalLocked)
             .unwrap_or(0);
 
-        checkpoints.push_back((ledger, total_locked));
+        let index: u32 = env
+            .storage()
+            .instance()
+            .get(&DataKey::GlobalCheckpointCount)
+            .unwrap_or(0);
 
+        let key = DataKey::GlobalCheckpoint(index);
+        env.storage()
+            .persistent()
+            .set(&key, &(ledger, total_locked));
+        Self::refresh_persistent_ttl(env, &key);
+
+        let next = index
+            .checked_add(1)
+            .unwrap_or_else(|| env.panic_with_error(VoteEscrowError::ArithmeticOverflow));
         env.storage()
             .instance()
-            .set(&DataKey::GlobalCheckpoints, &checkpoints);
+            .set(&DataKey::GlobalCheckpointCount, &next);
     }
 
     fn refresh_persistent_ttl(env: &Env, key: &DataKey) {
         env.storage().persistent().extend_ttl(key, 100_000, 100_000);
     }
 
-    fn binary_search_checkpoint(checkpoints: &Vec<(u32, i128)>, ledger: u32) -> i128 {
+    /// Total locked at the latest checkpoint at or before `ledger`, or `0` when no
+    /// checkpoint is that old. Binary search reads O(log n) checkpoint entries.
+    fn binary_search_checkpoint(env: &Env, ledger: u32) -> i128 {
+        let count: u32 = env
+            .storage()
+            .instance()
+            .get(&DataKey::GlobalCheckpointCount)
+            .unwrap_or(0);
+
         let mut low = 0;
-        let mut high = checkpoints.len();
+        let mut high = count;
 
         while low < high {
-            let mid = (low + high) / 2;
-            if checkpoints.get(mid).unwrap().0 <= ledger {
+            let mid = low + (high - low) / 2;
+            if Self::read_checkpoint(env, mid).0 <= ledger {
                 low = mid + 1;
             } else {
                 high = mid;
@@ -717,8 +730,17 @@ impl VoteEscrowContract {
         if low == 0 {
             0
         } else {
-            checkpoints.get(low - 1).unwrap().1
+            Self::read_checkpoint(env, low - 1).1
         }
+    }
+
+    /// Read checkpoint `index`. Every index below the stored count was written by
+    /// `update_global_checkpoint` and is never removed, so the entry must exist.
+    fn read_checkpoint(env: &Env, index: u32) -> (u32, i128) {
+        env.storage()
+            .persistent()
+            .get(&DataKey::GlobalCheckpoint(index))
+            .expect("global checkpoint below the stored count must exist")
     }
 }
 

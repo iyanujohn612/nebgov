@@ -324,6 +324,31 @@ actor's own leaf in that epoch's published allocation, so claiming any other
 amount fails with `InvalidProof`; with no published allocation the proof is
 empty. See `scenarios/voting_rewards.json`.
 
+**Treasury Strategies**
+
+The harness deploys `contracts/treasury-strategies` with the `admin` actor as
+its admin, the deployed treasury as its treasury, and a mock adapter that
+accrues 5% APY. Strategies are registered for the harness token.
+
+```json
+{ "type": "RegisterTreasuryStrategy", "max_allocation_bps": 10000, "withdrawal_cooldown_ledgers": 10 }
+{ "type": "FundTreasury", "amount": 1000 }
+{ "type": "DepositToTreasuryStrategy", "amount": 600 }
+{ "type": "RequestTreasuryWithdrawal", "strategy_id": 1, "amount": 200 }
+{ "type": "ClaimTreasuryWithdrawal", "withdrawal_id": 1 }
+{ "type": "ExpectTreasuryAllocation", "strategy_id": 1, "amount": 400 }
+{ "type": "ExpectTreasuryBalance", "balance": 600 }
+{ "type": "ExpectTreasuryTotalValue", "total": 400 }
+```
+
+`FundTreasury` mints the token to the treasury contract.
+`DepositToTreasuryStrategy` and `RequestTreasuryWithdrawal` are called as the
+treasury, and the deposit goes to the least-allocated active strategy. Strategy
+and withdrawal ids are assigned sequentially from 1. Claims are permissionless
+and fail with `WithdrawalNotYetClaimable` before the cooldown elapses. The mock
+adapter's interest rounds to zero over the few ledgers a scenario runs, so the
+balances above are exact. See `scenarios/treasury_strategies.json`.
+
 ## Simulation Report
 
 Each run produces a JSON report with per-step results and aggregate metrics:

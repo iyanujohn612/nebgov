@@ -117,6 +117,7 @@ reason = "Suppressed: [reason] — [date] — [author]"
 | `contracts/optimistic-governor` | Fast-track proposals with challenge window ([docs](./docs/optimistic-governance.md)) |
 | `contracts/conviction-voting` | Self-executing voting based on conviction ([docs](./docs/conviction-voting.md)) |
 | `contracts/signal-anchor`    | Off-chain signaling with on-chain anchoring ([docs](./docs/signal-anchor.md)) |
+| `contracts/treasury-streams` | Recurring treasury payments, governance-created ([docs](./docs/treasury-streams.md)) |
 | `sdk/`                       | TypeScript SDK (`@nebgov/sdk`)          |
 | `app/`                       | Next.js governance dashboard            |
 | `docs/`                      | Architecture docs and ADRs              |

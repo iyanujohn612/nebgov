@@ -1566,6 +1566,20 @@ impl GovernorContract {
             env.panic_with_error(GovernorError::ProposalAlreadyCancelled);
         }
 
+        // Settle any natural Defeated/Expired outcome first so its penalty is
+        // recorded (and flagged) before we decide whether to add a Cancelled one.
+        Self::state(env.clone(), proposal_id);
+        let already_scored = env
+            .storage()
+            .persistent()
+            .get(&DataKey::ProposalExpiredEmitted(proposal_id))
+            .unwrap_or(false)
+            || env
+                .storage()
+                .persistent()
+                .get(&DataKey::ReputationExpiredRecorded(proposal_id))
+                .unwrap_or(false);
+
         let mut proposal_mut = proposal;
         proposal_mut.cancelled = true;
         env.storage()
@@ -1573,12 +1587,16 @@ impl GovernorContract {
             .set(&DataKey::Proposal(proposal_id), &proposal_mut);
         // Extend TTL to cover full proposal lifecycle
         Self::extend_proposal_ttl(&env, proposal_id, &proposal_mut);
-        reputation::record_proposal_terminal(
-            &env,
-            &proposal_mut.proposer,
-            reputation::ReputationOutcome::Cancelled,
-            None,
-        );
+        // A proposal that already lost (Defeated/Expired) has been penalised
+        // once; don't penalise it a second time for the governance cancel (Issue #797).
+        if !already_scored {
+            reputation::record_proposal_terminal(
+                &env,
+                &proposal_mut.proposer,
+                reputation::ReputationOutcome::Cancelled,
+                None,
+            );
+        }
 
         // If the proposal was queued, cancel its timelock operations
         if proposal_mut.queued {

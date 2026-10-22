@@ -90,7 +90,8 @@ Add more tokens to an existing lock (preserves expiration):
 increase_lock_amount(owner: Address, additional_amount: i128) -> Lock
 ```
 
-- Extends lock history and recalculates voting power
+- Recalculates voting power. The existing balance keeps its boost and its decay schedule
+- The added tokens are priced as a fresh lock for the ledgers remaining until `end_ledger`. A top-up late in a lock therefore earns only the boost that remaining time buys, and it cannot restore boost that has already decayed
 - Useful when a holder wants more voting power without changing the duration
 
 ### 3. Extend Lock Duration
@@ -188,6 +189,7 @@ update_escrow_config(
 - Each parameter is optional; omit to keep current value
 - Changes apply only to new locks, not existing ones
 - Existing locks continue to decay with their original parameters
+- `admin` must be the stored admin. Any other caller, even one who passes its own address and authorizes it, fails with `Unauthorized`
 
 ## Error Handling
 
@@ -201,6 +203,7 @@ The contract emits typed errors for common failure cases:
 | `LockNotFound`          | Holder has no lock (or it was withdrawn)          |
 | `LockAlreadyWithdrawn`  | Attempting operation on a withdrawn lock          |
 | `ArithmeticOverflow`    | Integer overflow in lock calculations             |
+| `Unauthorized`          | `update_escrow_config` caller is not the admin    |
 
 ## Events
 

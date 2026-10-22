@@ -29,6 +29,7 @@ NebGov is the canonical governance framework for the Stellar ecosystem — a mod
 | Guardian Council       | M-of-N emergency pause and cancellation authority ([docs](./docs/guardian-council.md)) |
 | Gasless signaling      | Off-chain polling with on-chain result anchoring ([docs](./docs/signal-anchor.md)) |
 | Co-sponsorship         | Pool voting power across multiple token holders to meet the proposal threshold ([docs](./docs/co-sponsorship.md)) |
+| Proposer reputation    | Scales the proposal threshold from 0.5x to 2x based on past proposal outcomes ([docs](./docs/parameter-guide.md#proposer-reputation)) |
 
 ---
 

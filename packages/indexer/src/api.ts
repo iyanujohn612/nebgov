@@ -1370,6 +1370,9 @@ export function createApp(server: SorobanRpc.Server): express.Application {
   );
 
   // GET /reputation/:address/history?offset=0&limit=50
+  //
+  // Pages backwards from the newest entry, so offset 0 is always the most
+  // recent `limit` rows. Each page is returned oldest-first for charting.
   app.get(
     "/reputation/:address/history",
     strictLimiter,
@@ -1380,10 +1383,14 @@ export function createApp(server: SorobanRpc.Server): express.Application {
       try {
         const result = await pool.query(
           `SELECT ledger, score, change, reason
-           FROM reputation_score_history
-           WHERE proposer_address = $1
-           ORDER BY ledger ASC
-           OFFSET $2 LIMIT $3`,
+           FROM (
+             SELECT ledger, score, change, reason
+             FROM reputation_score_history
+             WHERE proposer_address = $1
+             ORDER BY ledger DESC
+             OFFSET $2 LIMIT $3
+           ) recent
+           ORDER BY ledger ASC`,
           [address, offset, limit],
         );
         res.json({

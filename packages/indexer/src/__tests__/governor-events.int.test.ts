@@ -325,7 +325,7 @@ describe("governor event indexing (integration)", () => {
       ledger: 204,
       type: "ReputationUpdated",
       topicArgs: [proposer],
-      value: [proposer, 100, 150, "active_proposal_passed"],
+      value: { proposer, old_score: 100, new_score: 150, reason: "active_proposal_passed" },
     });
 
     const server = new FakeServer([reputationUpdated]) as unknown as SorobanRpc.Server;
@@ -353,7 +353,7 @@ describe("governor event indexing (integration)", () => {
       ledger: 205,
       type: "EffectiveThresholdChanged",
       topicArgs: [proposer],
-      value: [proposer, 1000n, 1200n],
+      value: { proposer, old_threshold: 1000n, new_threshold: 1200n },
     });
 
     const server = new FakeServer([thresholdChanged]) as unknown as SorobanRpc.Server;

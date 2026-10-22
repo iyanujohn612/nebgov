@@ -29,6 +29,7 @@ import {
   FileText,
   Shield,
   ShieldCheck,
+  Trophy,
 } from "lucide-react";
 import { useTheme } from "../hooks/useTheme";
 import { useTranslations } from "next-intl";
@@ -61,6 +62,7 @@ const NAV_LINKS = [
   { name: "Drafts", href: "/drafts", icon: FileText },
   { name: "Delegates", href: "/delegates", icon: Users },
   { name: "Analytics", href: "/analytics", icon: BarChart3 },
+  { name: "Leaderboard", href: "/leaderboard", icon: Trophy },
   { name: "Treasury", href: "/treasury", icon: Wallet2 },
   { name: "Strategies", href: "/treasury/strategies", icon: TrendingUp },
   { name: "Governance Tuning", href: "/governance-tuning", icon: SlidersHorizontal },

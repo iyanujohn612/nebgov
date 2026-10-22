@@ -114,11 +114,21 @@ export function ProposerLeaderboard({ className = "", limit = 50 }: ProposerLead
             {columns.map((col) => (
               <th
                 key={col.key}
-                onClick={() => toggleSort(col.key)}
-                className="pb-2 px-4 font-medium text-gray-500 dark:text-gray-400 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white"
+                aria-sort={
+                  sortKey === col.key ? (sortAsc ? "ascending" : "descending") : "none"
+                }
+                className="pb-2 px-4 font-medium text-gray-500 dark:text-gray-400"
               >
-                {col.label}
-                {sortKey === col.key && (sortAsc ? " ▲" : " ▼")}
+                <button
+                  type="button"
+                  onClick={() => toggleSort(col.key)}
+                  className="inline-flex items-center gap-1 cursor-pointer select-none rounded hover:text-gray-900 dark:hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500"
+                >
+                  {col.label}
+                  {sortKey === col.key && (
+                    <span aria-hidden="true">{sortAsc ? "▲" : "▼"}</span>
+                  )}
+                </button>
               </th>
             ))}
             <th className="pb-2 px-4 font-medium text-gray-500 dark:text-gray-400">

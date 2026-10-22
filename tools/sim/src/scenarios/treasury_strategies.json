@@ -1,0 +1,51 @@
+{
+  "name": "treasury_strategies",
+  "description": "Deposit-to-claimed-withdrawal lifecycle on contracts/treasury-strategies (admin = the harness admin actor, treasury = the deployed multisig, one 100%-cap strategy backed by the mock adapter, 10-ledger withdrawal cooldown): fund the treasury, deposit into a strategy, request a withdrawal, reject an early claim (WithdrawalNotYetClaimable), claim once the cooldown has elapsed, then pin the rejected double claim (WithdrawalAlreadyClaimed) and an over-allocation request (InsufficientAllocation). The mock adapter accrues 5% APY, but over these few ledgers the interest rounds to zero, so every balance below is exact.",
+  "seed": 12,
+  "governor_settings": {
+    "voting_delay": 1,
+    "voting_period": 10,
+    "quorum_numerator": 10,
+    "proposal_threshold": 100,
+    "vote_type": "Extended",
+    "proposal_grace_period": 1000,
+    "max_calldata_size": 10000,
+    "proposal_cooldown": 0,
+    "max_proposals_per_period": 5,
+    "proposal_period_duration": 10000
+  },
+  "actors": [
+    { "name": "admin", "initial_balance": 0, "delegate_to": null, "role": "Admin" }
+  ],
+  "steps": [
+    { "type": "RegisterTreasuryStrategy", "max_allocation_bps": 10000, "withdrawal_cooldown_ledgers": 10, "description": "strategy 1: up to 100% of the treasury's balance may be allocated to it" },
+    { "type": "ExpectTreasuryTotalValue", "total": 0, "description": "no funds have reached a strategy yet" },
+
+    { "type": "FundTreasury", "amount": 1000 },
+    { "type": "ExpectTreasuryBalance", "balance": 1000 },
+    { "type": "DepositToTreasuryStrategy", "amount": 600 },
+    { "type": "ExpectTreasuryBalance", "balance": 400, "description": "600 left the treasury for the strategy" },
+    { "type": "ExpectTreasuryAllocation", "strategy_id": 1, "amount": 600 },
+    { "type": "ExpectTreasuryTotalValue", "total": 600 },
+
+    { "type": "AdvanceLedger", "ledgers": 3, "description": "ledger 4" },
+    { "type": "RequestTreasuryWithdrawal", "strategy_id": 1, "amount": 200, "description": "withdrawal 1 becomes claimable at ledger 14 (4 + 10 cooldown)" },
+    { "type": "ExpectTreasuryAllocation", "strategy_id": 1, "amount": 400, "description": "requesting a withdrawal deallocates it immediately" },
+    { "type": "ClaimTreasuryWithdrawal", "withdrawal_id": 1, "description": "claim before the cooldown has elapsed" },
+    { "type": "ExpectError", "step_index": 11, "expected_error": "Error(Contract, #10)" },
+    { "type": "ExpectTreasuryBalance", "balance": 400, "description": "the rejected early claim moved no funds" },
+
+    { "type": "AdvanceLedger", "ledgers": 10, "description": "ledger 14 == withdrawal 1's claimable ledger" },
+    { "type": "ClaimTreasuryWithdrawal", "withdrawal_id": 1 },
+    { "type": "ExpectTreasuryBalance", "balance": 600, "description": "the 200 claimed returns to the treasury" },
+    { "type": "ExpectTreasuryTotalValue", "total": 400, "description": "600 minus the 200 that was paid out" },
+    { "type": "ExpectTreasuryAllocation", "strategy_id": 1, "amount": 400 },
+
+    { "type": "ClaimTreasuryWithdrawal", "withdrawal_id": 1, "description": "double claim" },
+    { "type": "ExpectError", "step_index": 19, "expected_error": "Error(Contract, #9)" },
+    { "type": "RequestTreasuryWithdrawal", "strategy_id": 1, "amount": 500, "description": "over-allocation: only 400 is still allocated to strategy 1" },
+    { "type": "ExpectError", "step_index": 21, "expected_error": "Error(Contract, #7)" },
+    { "type": "ExpectTreasuryAllocation", "strategy_id": 1, "amount": 400, "description": "the rejected request left the allocation untouched" },
+    { "type": "ExpectTreasuryBalance", "balance": 600 }
+  ]
+}

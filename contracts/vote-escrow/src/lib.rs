@@ -504,6 +504,22 @@ impl VoteEscrowContract {
     ) {
         admin.require_auth();
 
+        let old_min_lock_duration: u32 = env
+            .storage()
+            .instance()
+            .get(&DataKey::MinLockDuration)
+            .unwrap_or_else(|| env.panic_with_error(VoteEscrowError::NotInitialized));
+        let old_max_lock_duration: u32 = env
+            .storage()
+            .instance()
+            .get(&DataKey::MaxLockDuration)
+            .unwrap_or_else(|| env.panic_with_error(VoteEscrowError::NotInitialized));
+        let old_max_multiplier_bps: u32 = env
+            .storage()
+            .instance()
+            .get(&DataKey::MaxMultiplierBps)
+            .unwrap_or_else(|| env.panic_with_error(VoteEscrowError::NotInitialized));
+
         env.storage()
             .instance()
             .set(&DataKey::MinLockDuration, &min_lock_duration);
@@ -513,6 +529,18 @@ impl VoteEscrowContract {
         env.storage()
             .instance()
             .set(&DataKey::MaxMultiplierBps, &max_multiplier_bps);
+
+        emit_escrow_config_updated(
+            &env,
+            EscrowConfigUpdatedEvent {
+                old_min_lock_duration,
+                new_min_lock_duration: min_lock_duration,
+                old_max_lock_duration,
+                new_max_lock_duration: max_lock_duration,
+                old_max_multiplier_bps,
+                new_max_multiplier_bps: max_multiplier_bps,
+            },
+        );
     }
 
     fn compute_initial_voting_power(

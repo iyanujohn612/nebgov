@@ -962,6 +962,35 @@ fn test_withdraw_emits_lock_withdrawn_event() {
 }
 
 #[test]
+fn test_update_escrow_config_emits_escrow_config_updated_event() {
+    let f = setup();
+    let new_min = 50;
+    let new_max = 5_000;
+    let new_multiplier = 10_000;
+
+    f.env.as_contract(&f.contract_id, || {
+        VoteEscrowContract::update_escrow_config(
+            f.env.clone(),
+            f.admin.clone(),
+            new_min,
+            new_max,
+            new_multiplier,
+        );
+
+        let (topics, data) = find_event(&f.env, &f.contract_id, ESCROW_CONFIG_UPDATED_TOPIC);
+        assert_eq!(topics.len(), 1);
+
+        let decoded: EscrowConfigUpdatedEvent = data.try_into_val(&f.env).unwrap();
+        assert_eq!(decoded.old_min_lock_duration, MIN_LOCK_DURATION);
+        assert_eq!(decoded.new_min_lock_duration, new_min);
+        assert_eq!(decoded.old_max_lock_duration, MAX_LOCK_DURATION);
+        assert_eq!(decoded.new_max_lock_duration, new_max);
+        assert_eq!(decoded.old_max_multiplier_bps, MAX_MULTIPLIER_BPS);
+        assert_eq!(decoded.new_max_multiplier_bps, new_multiplier);
+    });
+}
+
+#[test]
 fn test_create_lock_overflowing_boost_computation_panics() {
     let f = setup();
     // Chosen so `amount * MAX_MULTIPLIER_BPS` overflows i128 inside

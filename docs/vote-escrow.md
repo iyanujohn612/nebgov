@@ -210,6 +210,7 @@ All state changes emit structured events for off-chain indexing:
 - `LockIncreased(owner, new_amount, new_voting_power)`
 - `LockExtended(owner, new_end_ledger, new_voting_power)`
 - `Withdrawn(owner, amount)`
+- `EscrowConfigUpdated(old_min_lock_duration, new_min_lock_duration, old_max_lock_duration, new_max_lock_duration, old_max_multiplier_bps, new_max_multiplier_bps)`
 
 ## Usage Example (SDK)
 
